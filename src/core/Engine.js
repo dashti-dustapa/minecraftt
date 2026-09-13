@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { Time } from './Time.js';
 import { Input } from './Input.js';
+import { Player } from '../player/Player.js';
 
 export class Engine {
     constructor() {
@@ -18,11 +19,13 @@ export class Engine {
         this.scene = null;
         this.camera = null;
         this.renderer = null;
+        this.player = null;
 
         this.updateHooks = [];
         this.tickHooks = [];
 
         this.initThree();
+        this.initPlayer();
         this.initEvents();
     }
 
@@ -37,7 +40,6 @@ export class Engine {
             0.1,
             1000
         );
-        this.camera.position.set(0, 32, 0);
 
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
@@ -47,12 +49,22 @@ export class Engine {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
 
         const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
         sunLight.position.set(100, 150, 50);
         this.scene.add(sunLight);
+
+        // هێڵی سەر زەوی تا زەوی ڕاستەقینە دروست دەکەین
+        const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
+        gridHelper.position.y = 0;
+        this.scene.add(gridHelper);
+    }
+
+    initPlayer() {
+        this.player = new Player(this.camera, this.input, this.scene);
+        this.addUpdateHook((delta) => this.player.update(delta));
     }
 
     initEvents() {
