@@ -16936,3 +16936,925 @@
   }
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 30: Part 1 required.");
+    return;
+  }
+
+  if (window.__minicraftPart30Loaded) {
+    return;
+  }
+
+  window.__minicraftPart30Loaded = true;
+
+  const PART30_KEY = "minecraft_part30_real_settings";
+
+  const isMobile =
+    "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+  const defaultSettings = {
+    renderDistance: isMobile ? 3 : 5,
+    preload: isMobile ? 1 : 2,
+    renderScale: isMobile ? 0.85 : 1
+  };
+
+  function loadSettings() {
+    const data = Object.assign({}, defaultSettings);
+
+    try {
+      const raw = localStorage.getItem(PART30_KEY);
+
+      if (raw) {
+        const parsed = JSON.parse(raw);
+
+        if (typeof parsed.renderDistance === "number") {
+          data.renderDistance = parsed.renderDistance;
+        }
+
+        if (typeof parsed.preload === "number") {
+          data.preload = parsed.preload;
+        }
+
+        if (typeof parsed.renderScale === "number") {
+          data.renderScale = parsed.renderScale;
+        }
+      }
+    } catch (error) {}
+
+    return data;
+  }
+
+  let settings = loadSettings();
+
+  function saveSettings() {
+    try {
+      localStorage.setItem(PART30_KEY, JSON.stringify(settings));
+
+      localStorage.setItem(
+        "minicraft_part27_settings",
+        JSON.stringify({
+          rd: settings.renderDistance
+        })
+      );
+    } catch (error) {}
+  }
+
+  saveSettings();
+
+  document.title = "Minecraft";
+
+  /* remove the long loading screen from Part 29 */
+  function removeOldLoading() {
+    const loading = document.getElementById("part29-loading");
+
+    if (loading) {
+      loading.remove();
+    }
+  }
+
+  removeOldLoading();
+  setInterval(removeOldLoading, 500);
+
+  /* force English text immediately */
+  const EN = {
+    "بارکردنی جیهان...": "Loading world...",
+    "بارکردن...": "Loading...",
+    "بارکردن": "Loading",
+    "سڕینەوەی جیهان...": "Clearing world...",
+    "دروستکردنی زەوی...": "Building terrain...",
+    "دانانی درەخت و دەریاچە...": "Placing trees and lakes...",
+    "دانانی کانزا و ڕووەک...": "Placing ores and plants...",
+    "چاوەڕوان بکە": "Please wait",
+
+    "ماین کڕافت": "Minecraft",
+    "مینی کرافت": "Minecraft",
+    "بینینی جیهانی پێشوو": "Load World",
+    "بینینی جیهان": "Play",
+    "دروستکردنی جیهانی نوێ": "Create New World",
+    "ڕێکخستنەکان": "Settings",
+    "جیهانەکان": "Worlds",
+    "کۆنترۆڵی مۆبایل": "Mobile Controls",
+    "گەڕانەوە": "Back",
+    "داخستن": "Close",
+
+    "ئینڤێنتۆر": "Inventory",
+    "دۆخی داهێنان": "Creative Mode",
+    "دۆخی داهێنان چالاک کرا": "Creative Mode ON",
+    "دۆخی داهێنان کوژایەوە": "Creative Mode OFF",
+
+    "مێزی دروستکردن": "Crafting Table",
+    "فڕن": "Furnace",
+    "دروستکردن": "Craft",
+    "پێویست:": "Need:",
+    "ئەنجام:": "Result:",
+    "کەرەستەی پێویستت نییە": "Not enough materials",
+
+    "جیهان پاشەکەوت کرا": "World saved",
+    "جیهان بارکرا": "World loaded",
+    "جیهان نوێ کرایەوە": "New world created",
+    "پاشەکەوتێک دۆزرایەوە.": "Save found.",
+
+    "سلۆتی": "Slot",
+    "بەتاڵ": "Empty",
+    "یاری": "Play",
+    "پاشەکەوت": "Save",
+    "سڕینەوە": "Delete",
+
+    "گوندێکی بچووک دروستکرا": "Village created",
+    "گوندێکی بچووک لە نزیک تۆ دروستکرا": "Village created nearby",
+    "نەخشە چالاک کرا": "Map shown",
+    "نەخشە شاردراوە": "Map hidden",
+
+    "بەلەم دروستکرا": "Boat created",
+    "سواربوویت بەلەم": "Mounted boat",
+    "لە بەلەم دابەزی": "Exited boat",
+    "بەلەمێک لە نزیکت نییە": "No boat nearby",
+    "دەبێت ئاو لەوێ هەبێت": "Water required",
+
+    "مۆب کوژرا!": "Mob killed!",
+    "سێوێک خوارد": "Ate an apple",
+    "سێوت نییە": "No apples",
+
+    "بلۆک:": "Block:",
+    "گیا": "Grass",
+    "خاک": "Dirt",
+    "بەرد": "Stone",
+    "کۆبڵ": "Cobblestone",
+    "دار": "Wood",
+    "تەختە": "Planks",
+    "گەڵا": "Leaves",
+    "خۆڵ": "Sand",
+    "شووشە": "Glass",
+    "ئاو": "Water",
+    "لابا": "Lava",
+    "ئۆبسیدیەن": "Obsidian",
+    "گلۆستۆن": "Glowstone",
+    "سپۆنج": "Sponge",
+    "کا": "Hay Bale",
+    "خەڵووز": "Coal",
+    "ئاسن": "Iron",
+    "زێڕ": "Gold",
+    "ئەڵماس": "Diamond",
+    "بێدڕۆک": "Bedrock",
+    "نەردەبان": "Ladder",
+    "مەشخەڵ": "Torch",
+    "گوڵی سوور": "Rose",
+    "گوڵی زەرد": "Dandelion",
+    "گیای درێژ": "Tall Grass",
+
+    "ڕێکخستنی مۆبایل": "Mobile Settings",
+    "کۆنترۆڵی دەسکی": "Touch Controls",
+    "قەبارەی جۆیستیک": "Joystick Size",
+    "قەبارەی دوگمەکان": "Button Size",
+    "هەستیاری ڕوانین": "Look Sensitivity",
+    "ڕوونی کۆنترۆڵەکان": "Controls Opacity"
+  };
+
+  const EN_KEYS = Object.keys(EN).sort(function (a, b) {
+    return b.length - a.length;
+  });
+
+  function toEnglish(text) {
+    if (!text) {
+      return text;
+    }
+
+    let out = text;
+
+    for (let i = 0; i < EN_KEYS.length; i++) {
+      const key = EN_KEYS[i];
+
+      if (out.indexOf(key) !== -1) {
+        out = out.split(key).join(EN[key]);
+      }
+    }
+
+    return out;
+  }
+
+  function translateNodeText(root) {
+    if (!root) {
+      return;
+    }
+
+    const walker = document.createTreeWalker(
+      root,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+
+    const list = [];
+
+    while (walker.nextNode()) {
+      list.push(walker.currentNode);
+    }
+
+    for (let i = 0; i < list.length; i++) {
+      const node = list[i];
+      const oldText = node.nodeValue;
+
+      if (oldText && /[\u0600-\u06FF]/.test(oldText)) {
+        node.nodeValue = toEnglish(oldText);
+      }
+    }
+  }
+
+  function forceEnglish() {
+    translateNodeText(document.body);
+
+    const title = document.querySelector(".part15-title");
+
+    if (title) {
+      title.textContent = "MINECRAFT";
+    }
+
+    const buttons = {
+      "part15-btn-enter": "Play",
+      "part15-btn-new": "Create New World",
+      "part15-btn-settings": "Settings",
+      "part17-worlds-btn": "Worlds",
+      "part16-title": "Inventory",
+      "part17-title": "Worlds",
+      "part18-title": "Crafting / Furnace",
+      "part20-settings-title": "Mobile Settings"
+    };
+
+    for (const id in buttons) {
+      const el = document.getElementById(id);
+
+      if (el) {
+        el.textContent = buttons[id];
+      }
+    }
+  }
+
+  forceEnglish();
+
+  if (window.MutationObserver) {
+    const observer = new MutationObserver(function () {
+      forceEnglish();
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  }
+
+  setInterval(forceEnglish, 1000);
+
+  /* visual + performance settings */
+  function applyRenderSettings() {
+    if (typeof renderer !== "undefined") {
+      const maxRatio = Math.max(0.5, Math.min(1.5, settings.renderScale));
+      renderer.setPixelRatio(maxRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    if (camera) {
+      camera.far = Math.max(80, settings.renderDistance * 48);
+      camera.updateProjectionMatrix();
+    }
+
+    const fogFar = Math.max(60, settings.renderDistance * 34);
+
+    if (!scene.fog) {
+      scene.fog = new THREE.Fog(0x87ceeb, fogFar * 0.45, fogFar);
+    } else {
+      scene.fog.near = fogFar * 0.45;
+      scene.fog.far = fogFar;
+    }
+
+    saveSettings();
+  }
+
+  applyRenderSettings();
+
+  window.addEventListener("resize", function () {
+    applyRenderSettings();
+  });
+
+  /* add simple Minecraft-like settings */
+  function addPart30Settings() {
+    const settingsBox = document.getElementById("part15-settings");
+
+    if (!settingsBox || document.getElementById("part30-settings")) {
+      return;
+    }
+
+    const panel = document.createElement("div");
+    panel.id = "part30-settings";
+    panel.style.margin = "14px 0";
+    panel.style.padding = "10px";
+    panel.style.border = "2px solid rgba(0,0,0,0.7)";
+    panel.style.background = "rgba(255,255,255,0.06)";
+
+    panel.innerHTML = `
+      <div style="font-weight:bold;margin-bottom:8px;text-align:center">
+        Minecraft World Settings
+      </div>
+
+      <div style="margin:10px 0">
+        <label>
+          Render Distance (chunks):
+          <span id="part30-rd-value"></span>
+        </label>
+        <input id="part30-rd" type="range" min="1" max="8" step="1" style="width:100%">
+      </div>
+
+      <div style="margin:10px 0">
+        <label>
+          World Preload:
+          <span id="part30-preload-value"></span>
+        </label>
+        <input id="part30-preload" type="range" min="0" max="4" step="1" style="width:100%">
+      </div>
+
+      <div style="margin:10px 0">
+        <label>
+          Render Scale:
+          <span id="part30-scale-value"></span>
+        </label>
+        <input id="part30-scale" type="range" min="0.5" max="1.25" step="0.05" style="width:100%">
+      </div>
+    `;
+
+    const closeBtn = document.getElementById("part15-settings-close");
+
+    if (closeBtn) {
+      settingsBox.insertBefore(panel, closeBtn);
+    } else {
+      settingsBox.appendChild(panel);
+    }
+
+    const rd = document.getElementById("part30-rd");
+    const preload = document.getElementById("part30-preload");
+    const scale = document.getElementById("part30-scale");
+
+    const rdValue = document.getElementById("part30-rd-value");
+    const preloadValue = document.getElementById("part30-preload-value");
+    const scaleValue = document.getElementById("part30-scale-value");
+
+    function sync() {
+      rd.value = settings.renderDistance;
+      preload.value = settings.preload;
+      scale.value = settings.renderScale;
+
+      rdValue.textContent = settings.renderDistance;
+      preloadValue.textContent = settings.preload;
+      scaleValue.textContent = Number(settings.renderScale).toFixed(2);
+    }
+
+    rd.addEventListener("input", function () {
+      settings.renderDistance = parseInt(this.value, 10);
+      sync();
+      applyRenderSettings();
+      queueChunksAroundPlayer(true);
+    });
+
+    preload.addEventListener("input", function () {
+      settings.preload = parseInt(this.value, 10);
+      sync();
+      saveSettings();
+      queueChunksAroundPlayer(true);
+    });
+
+    scale.addEventListener("input", function () {
+      settings.renderScale = parseFloat(this.value);
+      sync();
+      applyRenderSettings();
+    });
+
+    sync();
+  }
+
+  addPart30Settings();
+
+  setInterval(addPart30Settings, 1500);
+
+  /* chunk-based big world generation */
+  const CHUNK = 16;
+
+  const generatedChunks = new Set();
+  const queuedChunks = [];
+  const queuedSet = new Set();
+
+  function chunkKey30(cx, cz) {
+    return cx + "," + cz;
+  }
+
+  function chunkOf30(v) {
+    return Math.floor(v / CHUNK);
+  }
+
+  function blockType(x, y, z) {
+    const mesh = blocks.get(blockKey(x, y, z));
+
+    if (!mesh || !mesh.userData) {
+      return null;
+    }
+
+    return mesh.userData.type;
+  }
+
+  function chunkAlreadyHasTerrain(cx, cz) {
+    const x0 = cx * CHUNK;
+    const z0 = cz * CHUNK;
+
+    if (blocks.has(blockKey(x0, -3, z0))) {
+      return true;
+    }
+
+    if (blocks.has(blockKey(x0 + 8, -3, z0 + 8))) {
+      return true;
+    }
+
+    if (blocks.has(blockKey(x0 + 15, -3, z0 + 15))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function queueChunk(cx, cz) {
+    const key = chunkKey30(cx, cz);
+
+    if (generatedChunks.has(key) || queuedSet.has(key)) {
+      return;
+    }
+
+    if (chunkAlreadyHasTerrain(cx, cz)) {
+      generatedChunks.add(key);
+      return;
+    }
+
+    queuedSet.add(key);
+    queuedChunks.push({
+      x: cx,
+      z: cz
+    });
+  }
+
+  function biomeAt(x, z) {
+    const v =
+      Math.sin(x * 0.006) +
+      Math.sin(z * 0.008) +
+      Math.sin((x + z) * 0.004) * 0.5;
+
+    if (v > 1.05) {
+      return "desert";
+    }
+
+    if (v < -1.05) {
+      return "snow";
+    }
+
+    return "plains";
+  }
+
+  function terrainHeight(x, z) {
+    return Math.floor(
+      Math.sin(x * 0.12) * 1.8 +
+      Math.cos(z * 0.13) * 1.8 +
+      Math.sin((x + z) * 0.05) * 1.4
+    );
+  }
+
+  function safeAdd(x, y, z, type) {
+    if (!blocks.has(blockKey(x, y, z))) {
+      addBlock(x, y, z, type);
+    }
+  }
+
+  function safeRemove(x, y, z) {
+    if (blocks.has(blockKey(x, y, z))) {
+      removeBlock(x, y, z);
+    }
+  }
+
+  function addTree(x, groundY, z) {
+    for (let y = 1; y <= 4; y++) {
+      safeAdd(x, groundY + y, z, "wood");
+    }
+
+    const top = groundY + 4;
+
+    for (let dy = 0; dy <= 2; dy++) {
+      const radius = dy === 2 ? 1 : 2;
+
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dz = -radius; dz <= radius; dz++) {
+          if (dy < 2 && dx === 0 && dz === 0) {
+            continue;
+          }
+
+          if (dy === 2 && Math.abs(dx) + Math.abs(dz) > 1) {
+            continue;
+          }
+
+          safeAdd(x + dx, top + dy, z + dz, "leaves");
+        }
+      }
+    }
+  }
+
+  function generateChunk(cx, cz) {
+    const key = chunkKey30(cx, cz);
+
+    if (generatedChunks.has(key)) {
+      return;
+    }
+
+    generatedChunks.add(key);
+
+    const x0 = cx * CHUNK;
+    const z0 = cz * CHUNK;
+
+    for (let x = x0; x < x0 + CHUNK; x++) {
+      for (let z = z0; z < z0 + CHUNK; z++) {
+        if (blocks.has(blockKey(x, -3, z))) {
+          continue;
+        }
+
+        const biome = biomeAt(x, z);
+        const h = terrainHeight(x, z);
+
+        for (let y = -3; y <= h; y++) {
+          let type = "stone";
+
+          if (y === -3) {
+            type = "bedrock";
+          } else if (y === h) {
+            if (biome === "desert") {
+              type = "sand";
+            } else if (biome === "snow") {
+              type = "snow";
+            } else {
+              type = "grass";
+            }
+          } else if (y >= h - 2) {
+            type = biome === "desert" ? "sand" : "dirt";
+          }
+
+          safeAdd(x, y, z, type);
+        }
+      }
+    }
+
+    for (let x = x0; x < x0 + CHUNK; x++) {
+      for (let z = z0; z < z0 + CHUNK; z++) {
+        let top = null;
+
+        for (let y = 10; y >= -3; y--) {
+          const t = blockType(x, y, z);
+
+          if (t && t !== "water" && t !== "leaves") {
+            top = y;
+            break;
+          }
+        }
+
+        if (top === null) {
+          continue;
+        }
+
+        const biome = biomeAt(x, z);
+        const surface = blockType(x, top, z);
+        const r = Math.random();
+
+        if (surface === "stone" && r < 0.05) {
+          const ore =
+            r < 0.028
+              ? "coal_ore"
+              : r < 0.042
+              ? "iron_ore"
+              : r < 0.049
+              ? "gold_ore"
+              : "diamond_ore";
+
+          safeRemove(x, top, z);
+          safeAdd(x, top, z, ore);
+        }
+
+        if (surface === "grass") {
+          if (r < 0.018) {
+            addTree(x, top, z);
+          } else if (r < 0.055) {
+            safeAdd(
+              x,
+              top + 1,
+              z,
+              Math.random() < 0.5 ? "flower_red" : "tall_grass"
+            );
+          }
+        }
+
+        if (surface === "sand" && biome === "desert" && r < 0.018) {
+          safeAdd(x, top + 1, z, "cactus");
+
+          if (Math.random() < 0.55) {
+            safeAdd(x, top + 2, z, "cactus");
+          }
+        }
+
+        if (surface === "snow" && biome === "snow" && r < 0.035) {
+          safeAdd(x, top + 1, z, "snow");
+        }
+      }
+    }
+
+    if (Math.random() < 0.14) {
+      const lakeX = x0 + 4 + Math.floor(Math.random() * 8);
+      const lakeZ = z0 + 4 + Math.floor(Math.random() * 8);
+
+      for (let dx = -3; dx <= 3; dx++) {
+        for (let dz = -3; dz <= 3; dz++) {
+          if (dx * dx + dz * dz > 9) {
+            continue;
+          }
+
+          const wx = lakeX + dx;
+          const wz = lakeZ + dz;
+
+          for (let y = 6; y >= -1; y--) {
+            safeRemove(wx, y, wz);
+          }
+
+          safeAdd(wx, 0, wz, "water");
+          safeAdd(wx, -1, wz, "water");
+
+          safeRemove(wx, -2, wz);
+          safeAdd(wx, -2, wz, "sand");
+        }
+      }
+    }
+  }
+
+  function queueChunksAroundPlayer(force) {
+    const pcx = chunkOf30(player.x);
+    const pcz = chunkOf30(player.z);
+
+    const radius = Math.max(
+      1,
+      settings.renderDistance + settings.preload
+    );
+
+    const list = [];
+
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        const dist = Math.max(Math.abs(dx), Math.abs(dz));
+
+        list.push({
+          x: pcx + dx,
+          z: pcz + dz,
+          d: dist
+        });
+      }
+    }
+
+    list.sort(function (a, b) {
+      return a.d - b.d;
+    });
+
+    for (let i = 0; i < list.length; i++) {
+      queueChunk(list[i].x, list[i].z);
+    }
+  }
+
+  /* override new world generation: quick spawn, rest streams in */
+  const previousGenerateWorld = generateWorld;
+
+  generateWorld = function () {
+    generatedChunks.clear();
+    queuedChunks.length = 0;
+    queuedSet.clear();
+
+    const preload = Math.max(1, settings.preload + 1);
+
+    for (let cx = -preload; cx <= preload; cx++) {
+      for (let cz = -preload; cz <= preload; cz++) {
+        generateChunk(cx, cz);
+      }
+    }
+
+    queueChunksAroundPlayer(true);
+  };
+
+  queueChunksAroundPlayer(true);
+
+  setInterval(function () {
+    queueChunksAroundPlayer(false);
+  }, 1200);
+
+  /* simple chat */
+  function chat(text) {
+    const el = document.getElementById("part24-chat");
+
+    if (!el) {
+      return;
+    }
+
+    el.textContent = text;
+    el.style.opacity = "1";
+
+    clearTimeout(el._part30Timer);
+
+    el._part30Timer = setTimeout(function () {
+      el.style.opacity = "0";
+    }, 4200);
+  }
+
+  /* mob attacking fix */
+  const mobRaycaster = new THREE.Raycaster();
+  mobRaycaster.far = 4.5;
+
+  let mobGroups = [];
+  let mobScanTimer = 0;
+  const mobHealth = new Map();
+
+  function scanMobs() {
+    mobGroups = [];
+
+    scene.traverse(function (obj) {
+      if (
+        obj &&
+        obj.isGroup &&
+        obj.children &&
+        obj.children.length > 0 &&
+        obj.parent === scene
+      ) {
+        let hasMesh = false;
+
+        obj.traverse(function (child) {
+          if (child.isMesh) {
+            hasMesh = true;
+          }
+        });
+
+        if (hasMesh && obj.position.y > -20) {
+          mobGroups.push(obj);
+        }
+      }
+    });
+  }
+
+  function findMobGroup(object) {
+    let current = object;
+
+    while (current) {
+      if (mobGroups.indexOf(current) !== -1) {
+        return current;
+      }
+
+      current = current.parent;
+    }
+
+    return null;
+  }
+
+  function damageMob(group) {
+    if (!group) {
+      return;
+    }
+
+    const hp = (mobHealth.get(group.id) || 3) - 1;
+
+    mobHealth.set(group.id, hp);
+
+    group.traverse(function (child) {
+      if (child.isMesh && child.material && child.material.color) {
+        const old = child.material.color.getHex();
+
+        child.material.color.setHex(0xff4444);
+
+        setTimeout(function () {
+          if (child.material && child.material.color) {
+            child.material.color.setHex(old);
+          }
+        }, 120);
+      }
+    });
+
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+
+    group.position.addScaledVector(dir, 0.35);
+    group.position.y += 0.18;
+
+    if (hp <= 0) {
+      scene.remove(group);
+      mobHealth.delete(group.id);
+      chat("Mob killed");
+    } else {
+      chat("Mob hit");
+    }
+  }
+
+  function tryAttackMob(event) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    scanMobs();
+
+    if (mobGroups.length === 0) {
+      return;
+    }
+
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+
+    mobRaycaster.set(camera.position, dir);
+
+    const hits = mobRaycaster.intersectObjects(mobGroups, true);
+
+    if (!hits || hits.length === 0) {
+      return;
+    }
+
+    const group = findMobGroup(hits[0].object);
+
+    if (!group) {
+      return;
+    }
+
+    damageMob(group);
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  window.addEventListener("mousedown", tryAttackMob, true);
+
+  /* small FPS safety: lower render scale automatically if FPS is very low */
+  let frames = 0;
+  let timeSum = 0;
+  let lowFpsTimer = 0;
+
+  const clock = new THREE.Clock();
+
+  function loop() {
+    requestAnimationFrame(loop);
+
+    const delta = Math.min(clock.getDelta(), 0.05);
+
+    frames++;
+    timeSum += delta;
+
+    if (timeSum >= 1) {
+      const fps = frames / timeSum;
+
+      frames = 0;
+      timeSum = 0;
+
+      if (fps < 24) {
+        lowFpsTimer++;
+      } else {
+        lowFpsTimer = 0;
+      }
+
+      if (lowFpsTimer >= 4 && settings.renderScale > 0.65) {
+        settings.renderScale = Math.max(0.65, settings.renderScale - 0.1);
+        applyRenderSettings();
+
+        const scaleInput = document.getElementById("part30-scale");
+        const scaleValue = document.getElementById("part30-scale-value");
+
+        if (scaleInput) {
+          scaleInput.value = settings.renderScale;
+        }
+
+        if (scaleValue) {
+          scaleValue.textContent = Number(settings.renderScale).toFixed(2);
+        }
+
+        chat("Performance mode: Render Scale lowered");
+        lowFpsTimer = 0;
+      }
+    }
+
+    const start = performance.now();
+
+    while (queuedChunks.length > 0 && performance.now() - start < 6) {
+      const item = queuedChunks.shift();
+      queuedSet.delete(chunkKey30(item.x, item.z));
+      generateChunk(item.x, item.z);
+    }
+
+    mobScanTimer -= delta;
+
+    if (mobScanTimer <= 0) {
+      mobScanTimer = 2;
+      scanMobs();
+    }
+  }
+
+  loop();
+
+  chat("Part 30: Real Minecraft-style world settings, faster loading, English UI");
+})();
+</script>
