@@ -10701,3 +10701,1562 @@
   );
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 19: سەرەتا دەبێت Part 1 هەبێت.");
+    return;
+  }
+
+  if (window.__minicraftPart19Loaded) {
+    return;
+  }
+
+  window.__minicraftPart19Loaded = true;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #mc-message {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      padding: 8px 14px;
+      border-radius: 6px;
+      z-index: 30;
+      opacity: 0;
+      transition: opacity 0.25s;
+      direction: rtl;
+      font-size: 14px;
+      pointer-events: none;
+      text-align: center;
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  let part19MessageTimer = null;
+
+  function showPart19Message(text) {
+    let message = document.getElementById("mc-message");
+
+    if (!message) {
+      message = document.createElement("div");
+      message.id = "mc-message";
+      document.body.appendChild(message);
+    }
+
+    message.innerText = text;
+    message.style.opacity = "1";
+
+    clearTimeout(part19MessageTimer);
+
+    part19MessageTimer = setTimeout(function () {
+      message.style.opacity = "0";
+    }, 2200);
+  }
+
+  const boats = [];
+  let ridingBoat = null;
+  let part19Time = 0;
+
+  function isPart19Dead() {
+    const deathOverlay = document.getElementById("part7-death");
+
+    return deathOverlay && deathOverlay.style.display === "flex";
+  }
+
+  function isAnyOverlayOpen() {
+    const ids = [
+      "part15-menu",
+      "part16-inventory",
+      "part17-worlds",
+      "part18-panel"
+    ];
+
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+
+      if (el && el.style.display !== "none") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function isCreativeModePart19() {
+    try {
+      const raw = localStorage.getItem("minicraft_part16_settings");
+
+      if (raw) {
+        const parsed = JSON.parse(raw);
+
+        return parsed.creativeMode === true;
+      }
+    } catch (error) {}
+
+    return false;
+  }
+
+  function getBlockTypeAtPart19(x, y, z) {
+    const bx = Math.floor(x + 0.5);
+    const by = Math.floor(y + 0.5);
+    const bz = Math.floor(z + 0.5);
+
+    const mesh = blocks.get(blockKey(bx, by, bz));
+
+    if (!mesh) {
+      return null;
+    }
+
+    return mesh.userData.type;
+  }
+
+  function isSolidForBoat(type) {
+    if (!type) {
+      return false;
+    }
+
+    return (
+      type !== "water" &&
+      type !== "lava" &&
+      type !== "flower_red" &&
+      type !== "flower_yellow" &&
+      type !== "tall_grass" &&
+      type !== "ladder" &&
+      type !== "torch"
+    );
+  }
+
+  function getWaterSurfaceY(x, z, currentY) {
+    const bx = Math.floor(x + 0.5);
+    const bz = Math.floor(z + 0.5);
+    const start = Math.floor(currentY + 1.5);
+
+    for (let by = start; by >= start - 6; by--) {
+      const type = getBlockTypeAtPart19(bx, by, bz);
+
+      if (type === "water") {
+        return by + 0.55;
+      }
+    }
+
+    return null;
+  }
+
+  function getSolidGroundY(x, z, currentY) {
+    const bx = Math.floor(x + 0.5);
+    const bz = Math.floor(z + 0.5);
+    const start = Math.floor(currentY + 1.5);
+
+    for (let by = start; by >= start - 6; by--) {
+      const type = getBlockTypeAtPart19(bx, by, bz);
+
+      if (isSolidForBoat(type)) {
+        return by + 0.5;
+      }
+    }
+
+    return null;
+  }
+
+  function boatCollides(x, y, z) {
+    const offsets = [
+      [0, 0],
+      [0.55, 0],
+      [-0.55, 0],
+      [0, 1.05],
+      [0, -1.05]
+    ];
+
+    for (let i = 0; i < offsets.length; i++) {
+      const ox = offsets[i][0];
+      const oz = offsets[i][1];
+
+      if (
+        isSolidForBoat(getBlockTypeAtPart19(x + ox, y + 0.25, z + oz)) ||
+        isSolidForBoat(getBlockTypeAtPart19(x + ox, y + 0.8, z + oz))
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function removeBoat(boat) {
+    if (!boat) {
+      return;
+    }
+
+    if (ridingBoat === boat) {
+      ridingBoat = null;
+    }
+
+    scene.remove(boat.group);
+
+    boat.group.traverse(function (object) {
+      if (object.isMesh) {
+        object.geometry.dispose();
+
+        if (object.material) {
+          object.material.dispose();
+        }
+      }
+    });
+
+    const index = boats.indexOf(boat);
+
+    if (index !== -1) {
+      boats.splice(index, 1);
+    }
+  }
+
+  function createBoat(x, y, z) {
+    const group = new THREE.Group();
+
+    const woodMaterial = new THREE.MeshLambertMaterial({
+      color: 0x8a5a2b
+    });
+
+    const darkWoodMaterial = new THREE.MeshLambertMaterial({
+      color: 0x6b4520
+    });
+
+    const bottom = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.25, 2.3),
+      woodMaterial
+    );
+
+    bottom.position.y = 0.125;
+    group.add(bottom);
+
+    const sideLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(0.15, 0.45, 2.3),
+      darkWoodMaterial
+    );
+
+    sideLeft.position.set(-0.55, 0.35, 0);
+    group.add(sideLeft);
+
+    const sideRight = new THREE.Mesh(
+      new THREE.BoxGeometry(0.15, 0.45, 2.3),
+      darkWoodMaterial
+    );
+
+    sideRight.position.set(0.55, 0.35, 0);
+    group.add(sideRight);
+
+    const front = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.45, 0.15),
+      darkWoodMaterial
+    );
+
+    front.position.set(0, 0.35, -1.15);
+    group.add(front);
+
+    const back = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.45, 0.15),
+      darkWoodMaterial
+    );
+
+    back.position.set(0, 0.35, 1.15);
+    group.add(back);
+
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(0.85, 0.12, 0.45),
+      woodMaterial
+    );
+
+    seat.position.set(0, 0.35, 0.25);
+    group.add(seat);
+
+    group.position.set(x, y, z);
+    group.rotation.y = yaw;
+
+    scene.add(group);
+
+    const boat = {
+      group: group,
+      dir: yaw,
+      bob: Math.random() * 10,
+      velocityY: 0,
+      inWater: false
+    };
+
+    boats.push(boat);
+
+    if (boats.length > 3) {
+      removeBoat(boats[0]);
+    }
+
+    return boat;
+  }
+
+  function findNearestBoat(radius) {
+    let nearest = null;
+    let bestDistSq = radius * radius;
+
+    for (let i = 0; i < boats.length; i++) {
+      const boat = boats[i];
+      const dx = boat.group.position.x - player.x;
+      const dy = boat.group.position.y - player.y;
+      const dz = boat.group.position.z - player.z;
+
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        nearest = boat;
+      }
+    }
+
+    return nearest;
+  }
+
+  function exitBoat(skipLock) {
+    if (!ridingBoat) {
+      return;
+    }
+
+    const boat = ridingBoat;
+
+    ridingBoat = null;
+
+    const exitOffsets = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1]
+    ];
+
+    let exitX = boat.group.position.x + 1;
+    let exitZ = boat.group.position.z;
+
+    for (let i = 0; i < exitOffsets.length; i++) {
+      const ox = exitOffsets[i][0];
+      const oz = exitOffsets[i][1];
+
+      const x = boat.group.position.x + ox;
+      const z = boat.group.position.z + oz;
+
+      if (!boatCollides(x, boat.group.position.y, z)) {
+        exitX = x;
+        exitZ = z;
+        break;
+      }
+    }
+
+    player.x = exitX;
+    player.y = boat.group.position.y + 0.5;
+    player.z = exitZ;
+
+    velocity.x = 0;
+    velocity.y = 0;
+    velocity.z = 0;
+
+    if (!skipLock && !isAnyOverlayOpen() && !isPart19Dead()) {
+      document.body.requestPointerLock();
+    }
+  }
+
+  function toggleBoat() {
+    if (isAnyOverlayOpen() || isPart19Dead()) {
+      return;
+    }
+
+    if (document.pointerLockElement !== document.body) {
+      return;
+    }
+
+    if (ridingBoat) {
+      exitBoat(false);
+      showPart19Message("لە بەلەم دابەزی");
+      return;
+    }
+
+    const boat = findNearestBoat(3);
+
+    if (!boat) {
+      showPart19Message("بەلەمێک لە نزیکت نییە");
+      return;
+    }
+
+    ridingBoat = boat;
+    boat.dir = yaw;
+
+    showPart19Message("سواربوویت بەلەم");
+  }
+
+  function spawnBoat() {
+    if (isAnyOverlayOpen() || isPart19Dead()) {
+      return;
+    }
+
+    if (document.pointerLockElement !== document.body) {
+      return;
+    }
+
+    if (ridingBoat) {
+      return;
+    }
+
+    const forwardX = -Math.sin(yaw);
+    const forwardZ = -Math.cos(yaw);
+
+    const spawnX = player.x + forwardX * 2.5;
+    const spawnZ = player.z + forwardZ * 2.5;
+
+    let spawnY = getWaterSurfaceY(spawnX, spawnZ, player.y);
+
+    if (spawnY === null && isCreativeModePart19()) {
+      const groundY = getSolidGroundY(spawnX, spawnZ, player.y);
+
+      if (groundY !== null) {
+        spawnY = groundY + 0.15;
+      }
+    }
+
+    if (spawnY === null) {
+      showPart19Message("دەبێت ئاو لەوێ هەبێت");
+      return;
+    }
+
+    createBoat(spawnX, spawnY, spawnZ);
+
+    showPart19Message("بەلەم دروستکرا");
+  }
+
+  function updateBoat(boat, delta) {
+    const pos = boat.group.position;
+
+    const centerType = getBlockTypeAtPart19(
+      pos.x,
+      pos.y + 0.2,
+      pos.z
+    );
+
+    if (centerType === "lava") {
+      if (ridingBoat === boat) {
+        exitBoat(true);
+      }
+
+      removeBoat(boat);
+      return;
+    }
+
+    const waterY = getWaterSurfaceY(pos.x, pos.z, pos.y);
+
+    if (waterY !== null) {
+      boat.inWater = true;
+
+      pos.y += (waterY - pos.y) * Math.min(1, delta * 5);
+      boat.velocityY = 0;
+
+      pos.y += Math.sin(part19Time * 2 + boat.bob) * 0.015;
+    } else {
+      boat.inWater = false;
+
+      boat.velocityY -= 20 * delta;
+      pos.y += boat.velocityY * delta;
+
+      const groundY = getSolidGroundY(pos.x, pos.z, pos.y);
+
+      if (groundY !== null && pos.y <= groundY + 0.15) {
+        pos.y = groundY + 0.15;
+        boat.velocityY = 0;
+      }
+    }
+
+    if (
+      ridingBoat === boat &&
+      !isAnyOverlayOpen() &&
+      !isPart19Dead()
+    ) {
+      const speed = boat.inWater ? 4.3 : 1.2;
+
+      let forward = 0;
+      let strafe = 0;
+
+      if (keys["KeyW"]) forward += 1;
+      if (keys["KeyS"]) forward -= 1;
+      if (keys["KeyD"]) strafe += 1;
+      if (keys["KeyA"]) strafe -= 1;
+
+      if (forward !== 0 || strafe !== 0) {
+        const fx = -Math.sin(yaw);
+        const fz = -Math.cos(yaw);
+
+        const rx = Math.cos(yaw);
+        const rz = -Math.sin(yaw);
+
+        const dx = (fx * forward + rx * strafe) * speed * delta;
+        const dz = (fz * forward + rz * strafe) * speed * delta;
+
+        const newX = pos.x + dx;
+        const newZ = pos.z + dz;
+
+        if (!boatCollides(newX, pos.y, pos.z)) {
+          pos.x = newX;
+        }
+
+        if (!boatCollides(pos.x, pos.y, newZ)) {
+          pos.z = newZ;
+        }
+      }
+
+      boat.dir = yaw;
+      boat.group.rotation.y = yaw;
+
+      player.x = pos.x;
+      player.y = pos.y + 0.35;
+      player.z = pos.z;
+
+      velocity.x = 0;
+      velocity.y = 0;
+      velocity.z = 0;
+
+      camera.position.set(player.x, player.y + 1.6, player.z);
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+      camera.rotation.z = 0;
+    } else {
+      boat.group.rotation.y = boat.dir;
+    }
+
+    if (pos.y < -30) {
+      if (ridingBoat === boat) {
+        exitBoat(true);
+      }
+
+      removeBoat(boat);
+    }
+  }
+
+  window.addEventListener(
+    "keydown",
+    function (event) {
+      if (isAnyOverlayOpen() || isPart19Dead()) {
+        return;
+      }
+
+      if (document.pointerLockElement !== document.body) {
+        return;
+      }
+
+      if (event.code === "KeyB") {
+        spawnBoat();
+        event.stopImmediatePropagation();
+      }
+
+      if (event.code === "KeyN") {
+        toggleBoat();
+        event.stopImmediatePropagation();
+      }
+    },
+    true
+  );
+
+  const previousUpdatePlayer = updatePlayer;
+
+  updatePlayer = function (delta) {
+    if (ridingBoat) {
+      return;
+    }
+
+    previousUpdatePlayer(delta);
+  };
+
+  const part19Clock = new THREE.Clock();
+
+  function part19Loop() {
+    requestAnimationFrame(part19Loop);
+
+    const delta = Math.min(part19Clock.getDelta(), 0.05);
+
+    part19Time += delta;
+
+    if (ridingBoat && (isAnyOverlayOpen() || isPart19Dead())) {
+      exitBoat(true);
+    }
+
+    for (let i = boats.length - 1; i >= 0; i--) {
+      updateBoat(boats[i], delta);
+    }
+  }
+
+  part19Loop();
+
+  showPart19Message("Part 19: بەلەم زیادکرا — B و N");
+})();
+</script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 20: سەرەتا دەبێت Part 1 هەبێت.");
+    return;
+  }
+
+  if (window.__minicraftPart20Loaded) {
+    return;
+  }
+
+  window.__minicraftPart20Loaded = true;
+
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+
+  if (!viewportMeta) {
+    const meta = document.createElement("meta");
+    meta.name = "viewport";
+    document.head.appendChild(meta);
+  }
+
+  const metaTag = document.querySelector('meta[name="viewport"]');
+
+  if (metaTag) {
+    metaTag.content =
+      "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
+  }
+
+  const PART20_KEY = "minicraft_part20_settings";
+
+  const style = document.createElement("style");
+  style.textContent = `
+    html, body {
+      overscroll-behavior: none;
+    }
+
+    #mc-message {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      padding: 8px 14px;
+      border-radius: 6px;
+      z-index: 30;
+      opacity: 0;
+      transition: opacity 0.25s;
+      direction: rtl;
+      font-size: 14px;
+      pointer-events: none;
+      text-align: center;
+    }
+
+    #part20-controls {
+      display: none;
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    #part20-look {
+      position: fixed;
+      right: 0;
+      top: 0;
+      width: 55%;
+      height: 100%;
+      z-index: 20;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    #part20-joystick {
+      position: fixed;
+      left: 18px;
+      bottom: 26px;
+      width: var(--part20-joy, 120px);
+      height: var(--part20-joy, 120px);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      z-index: 30;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    #part20-knob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: calc(var(--part20-joy, 120px) * 0.42);
+      height: calc(var(--part20-joy, 120px) * 0.42);
+      margin-left: calc(var(--part20-joy, 120px) * -0.21);
+      margin-top: calc(var(--part20-joy, 120px) * -0.21);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.42);
+      pointer-events: none;
+    }
+
+    #part20-buttons {
+      position: fixed;
+      right: 14px;
+      bottom: 22px;
+      display: grid;
+      grid-template-columns: repeat(2, var(--part20-btn, 64px));
+      gap: 10px;
+      z-index: 32;
+      pointer-events: auto;
+    }
+
+    .part20-action-btn {
+      width: var(--part20-btn, 64px);
+      height: var(--part20-btn, 64px);
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.42);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      color: white;
+      font-size: calc(var(--part20-btn, 64px) * 0.34);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #part20-gear {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 36;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: 2px solid rgba(255,255,255,0.35);
+      background: rgba(0,0,0,0.35);
+      color: white;
+      font-size: 20px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    #part20-settings {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      direction: rtl;
+      font-family: Arial, sans-serif;
+    }
+
+    #part20-settings-box {
+      width: 480px;
+      max-width: 94vw;
+      max-height: 90vh;
+      overflow: auto;
+      background: rgba(20,20,20,0.92);
+      border: 3px solid #000;
+      padding: 16px;
+      color: white;
+      box-sizing: border-box;
+    }
+
+    #part20-settings-title {
+      font-size: 25px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 14px;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    .part20-setting-row {
+      margin: 13px 0;
+    }
+
+    .part20-setting-row label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    .part20-setting-row input[type="range"],
+    .part20-setting-row select {
+      width: 100%;
+    }
+
+    #part20-settings-close {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      background: #6f6f6f;
+      border: 2px solid #000;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    #part20-settings-close:hover {
+      background: #7f8cff;
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  let part20MessageTimer = null;
+
+  function showPart20Message(text) {
+    let message = document.getElementById("mc-message");
+
+    if (!message) {
+      message = document.createElement("div");
+      message.id = "mc-message";
+      document.body.appendChild(message);
+    }
+
+    message.innerText = text;
+    message.style.opacity = "1";
+
+    clearTimeout(part20MessageTimer);
+
+    part20MessageTimer = setTimeout(function () {
+      message.style.opacity = "0";
+    }, 2200);
+  }
+
+  const hasTouchDevice =
+    "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+  const defaultSettings = {
+    touchMode: "auto",
+    joystickSize: 120,
+    buttonSize: 62,
+    lookSensitivity: 1,
+    opacity: 0.85
+  };
+
+  function loadPart20Settings() {
+    const data = Object.assign({}, defaultSettings);
+
+    try {
+      const raw = localStorage.getItem(PART20_KEY);
+
+      if (raw) {
+        const parsed = JSON.parse(raw);
+
+        for (const key in defaultSettings) {
+          if (parsed[key] !== undefined) {
+            data[key] = parsed[key];
+          }
+        }
+      }
+    } catch (error) {}
+
+    return data;
+  }
+
+  let settings = loadPart20Settings();
+
+  function savePart20Settings() {
+    try {
+      localStorage.setItem(PART20_KEY, JSON.stringify(settings));
+    } catch (error) {}
+  }
+
+  function shouldUseTouch() {
+    if (settings.touchMode === "on") {
+      return true;
+    }
+
+    if (settings.touchMode === "off") {
+      return false;
+    }
+
+    return hasTouchDevice;
+  }
+
+  let fakePointerLock = false;
+
+  try {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      "pointerLockElement"
+    );
+
+    if (originalDescriptor && originalDescriptor.get) {
+      const originalGet = originalDescriptor.get;
+
+      Object.defineProperty(document, "pointerLockElement", {
+        configurable: true,
+        get: function () {
+          if (fakePointerLock) {
+            return document.body;
+          }
+
+          return originalGet.call(document);
+        }
+      });
+    } else {
+      Object.defineProperty(document, "pointerLockElement", {
+        configurable: true,
+        get: function () {
+          return fakePointerLock ? document.body : null;
+        }
+      });
+    }
+  } catch (error) {}
+
+  function setFakeLock(state) {
+    if (fakePointerLock === state) {
+      return;
+    }
+
+    fakePointerLock = state;
+
+    try {
+      document.dispatchEvent(new Event("pointerlockchange"));
+    } catch (error) {}
+  }
+
+  try {
+    const originalRequestPointerLock =
+      document.body.requestPointerLock;
+
+    document.body.requestPointerLock = function () {
+      if (shouldUseTouch()) {
+        setFakeLock(true);
+        return;
+      }
+
+      if (originalRequestPointerLock) {
+        originalRequestPointerLock.call(document.body);
+      }
+    };
+  } catch (error) {}
+
+  function isPart15MenuVisible() {
+    const menu = document.getElementById("part15-menu");
+
+    return menu && menu.style.display !== "none";
+  }
+
+  function isPart7DeadNow() {
+    const death = document.getElementById("part7-death");
+
+    return death && death.style.display === "flex";
+  }
+
+  function isAnyOverlayOpenPart20() {
+    const ids = [
+      "part15-menu",
+      "part16-inventory",
+      "part17-worlds",
+      "part18-panel",
+      "part20-settings"
+    ];
+
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+
+      if (el && el.style.display !== "none") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  const controlsRoot = document.createElement("div");
+  controlsRoot.id = "part20-controls";
+
+  controlsRoot.innerHTML = `
+    <div id="part20-look"></div>
+
+    <div id="part20-joystick">
+      <div id="part20-knob"></div>
+    </div>
+
+    <div id="part20-buttons">
+      <div class="part20-action-btn" id="part20-jump">⬆</div>
+      <div class="part20-action-btn" id="part20-mine">⛏</div>
+      <div class="part20-action-btn" id="part20-place">🧱</div>
+      <div class="part20-action-btn" id="part20-inv">E</div>
+      <div class="part20-action-btn" id="part20-menu">☰</div>
+    </div>
+  `;
+
+  document.body.appendChild(controlsRoot);
+
+  const lookArea = document.getElementById("part20-look");
+  const joystick = document.getElementById("part20-joystick");
+  const knob = document.getElementById("part20-knob");
+  const jumpBtn = document.getElementById("part20-jump");
+  const mineBtn = document.getElementById("part20-mine");
+  const placeBtn = document.getElementById("part20-place");
+  const invBtn = document.getElementById("part20-inv");
+  const menuBtn = document.getElementById("part20-menu");
+
+  const gearBtn = document.createElement("button");
+  gearBtn.id = "part20-gear";
+  gearBtn.innerText = "⚙";
+
+  document.body.appendChild(gearBtn);
+
+  const settingsOverlay = document.createElement("div");
+  settingsOverlay.id = "part20-settings";
+
+  settingsOverlay.innerHTML = `
+    <div id="part20-settings-box">
+      <div id="part20-settings-title">ڕێکخستنی مۆبایل</div>
+
+      <div class="part20-setting-row">
+        <label>کۆنترۆڵی دەسکی</label>
+        <select id="part20-touch-mode">
+          <option value="auto">Auto</option>
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+
+      <div class="part20-setting-row">
+        <label>قەبارەی جۆیستیک: <span id="part20-joy-value"></span></label>
+        <input id="part20-joy-size" type="range" min="80" max="180" step="5">
+      </div>
+
+      <div class="part20-setting-row">
+        <label>قەبارەی دوگمەکان: <span id="part20-btn-value"></span></label>
+        <input id="part20-btn-size" type="range" min="46" max="90" step="2">
+      </div>
+
+      <div class="part20-setting-row">
+        <label>هەستیاری ڕوانین: <span id="part20-look-value"></span></label>
+        <input id="part20-look-sens" type="range" min="0.3" max="2" step="0.1">
+      </div>
+
+      <div class="part20-setting-row">
+        <label>ڕوونی کۆنترۆڵەکان: <span id="part20-opacity-value"></span></label>
+        <input id="part20-opacity" type="range" min="0.3" max="1" step="0.05">
+      </div>
+
+      <button id="part20-settings-close">داخستن</button>
+    </div>
+  `;
+
+  document.body.appendChild(settingsOverlay);
+
+  const touchModeSelect = document.getElementById("part20-touch-mode");
+  const joySizeInput = document.getElementById("part20-joy-size");
+  const btnSizeInput = document.getElementById("part20-btn-size");
+  const lookSensInput = document.getElementById("part20-look-sens");
+  const opacityInput = document.getElementById("part20-opacity");
+  const joyValue = document.getElementById("part20-joy-value");
+  const btnValue = document.getElementById("part20-btn-value");
+  const lookValue = document.getElementById("part20-look-value");
+  const opacityValue = document.getElementById("part20-opacity-value");
+  const settingsCloseBtn = document.getElementById("part20-settings-close");
+
+  function applyPart20Settings() {
+    document.documentElement.style.setProperty(
+      "--part20-joy",
+      settings.joystickSize + "px"
+    );
+
+    document.documentElement.style.setProperty(
+      "--part20-btn",
+      settings.buttonSize + "px"
+    );
+
+    controlsRoot.style.opacity = settings.opacity;
+
+    savePart20Settings();
+  }
+
+  function updatePart20SettingLabels() {
+    touchModeSelect.value = settings.touchMode;
+
+    joySizeInput.value = settings.joystickSize;
+    btnSizeInput.value = settings.buttonSize;
+    lookSensInput.value = settings.lookSensitivity;
+    opacityInput.value = settings.opacity;
+
+    joyValue.innerText = settings.joystickSize;
+    btnValue.innerText = settings.buttonSize;
+    lookValue.innerText = Number(settings.lookSensitivity).toFixed(1);
+    opacityValue.innerText = Number(settings.opacity).toFixed(2);
+  }
+
+  touchModeSelect.addEventListener("change", function () {
+    settings.touchMode = this.value;
+    updatePart20SettingLabels();
+    applyPart20Settings();
+  });
+
+  joySizeInput.addEventListener("input", function () {
+    settings.joystickSize = parseFloat(this.value);
+    updatePart20SettingLabels();
+    applyPart20Settings();
+  });
+
+  btnSizeInput.addEventListener("input", function () {
+    settings.buttonSize = parseFloat(this.value);
+    updatePart20SettingLabels();
+    applyPart20Settings();
+  });
+
+  lookSensInput.addEventListener("input", function () {
+    settings.lookSensitivity = parseFloat(this.value);
+    updatePart20SettingLabels();
+    applyPart20Settings();
+  });
+
+  opacityInput.addEventListener("input", function () {
+    settings.opacity = parseFloat(this.value);
+    updatePart20SettingLabels();
+    applyPart20Settings();
+  });
+
+  function openPart20Settings() {
+    settingsOverlay.style.display = "flex";
+    updatePart20SettingLabels();
+  }
+
+  function closePart20Settings() {
+    settingsOverlay.style.display = "none";
+  }
+
+  gearBtn.addEventListener("click", openPart20Settings);
+
+  settingsCloseBtn.addEventListener("click", closePart20Settings);
+
+  settingsOverlay.addEventListener("click", function (event) {
+    if (event.target === settingsOverlay) {
+      closePart20Settings();
+    }
+  });
+
+  const part15MainButtons = document.getElementById("part15-main-buttons");
+  const part15SettingsBtn = document.getElementById("part15-btn-settings");
+
+  if (part15MainButtons) {
+    const mobileSettingsBtn = document.createElement("button");
+    mobileSettingsBtn.className = "part15-btn";
+    mobileSettingsBtn.innerText = "کۆنترۆڵی مۆبایل";
+
+    if (part15SettingsBtn) {
+      part15MainButtons.insertBefore(
+        mobileSettingsBtn,
+        part15SettingsBtn
+      );
+    } else {
+      part15MainButtons.appendChild(mobileSettingsBtn);
+    }
+
+    mobileSettingsBtn.addEventListener("click", openPart20Settings);
+  }
+
+  function getTouchById(touchList, id) {
+    for (let i = 0; i < touchList.length; i++) {
+      if (touchList[i].identifier === id) {
+        return touchList[i];
+      }
+    }
+
+    return null;
+  }
+
+  function clearTouchMovementKeys() {
+    if (typeof keys !== "object") {
+      return;
+    }
+
+    keys["KeyW"] = false;
+    keys["KeyA"] = false;
+    keys["KeyS"] = false;
+    keys["KeyD"] = false;
+  }
+
+  function setTouchMovementKeys(nx, ny) {
+    if (typeof keys !== "object") {
+      return;
+    }
+
+    const deadZone = 0.25;
+
+    keys["KeyW"] = ny < -deadZone;
+    keys["KeyS"] = ny > deadZone;
+    keys["KeyA"] = nx < -deadZone;
+    keys["KeyD"] = nx > deadZone;
+  }
+
+  let joystickTouchId = null;
+  let joystickCenter = null;
+
+  function updateJoystick(touch) {
+    if (!joystickCenter) {
+      return;
+    }
+
+    const radius = joystick.offsetWidth / 2;
+    const maxKnob = radius * 0.65;
+
+    let dx = touch.clientX - joystickCenter.x;
+    let dy = touch.clientY - joystickCenter.y;
+
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > maxKnob) {
+      dx = (dx / dist) * maxKnob;
+      dy = (dy / dist) * maxKnob;
+    }
+
+    knob.style.transform = "translate(" + dx + "px," + dy + "px)";
+
+    setTouchMovementKeys(dx / maxKnob, dy / maxKnob);
+  }
+
+  joystick.addEventListener(
+    "touchstart",
+    function (event) {
+      event.preventDefault();
+
+      if (!shouldUseTouch() || isAnyOverlayOpenPart20()) {
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+      joystickTouchId = touch.identifier;
+
+      const rect = joystick.getBoundingClientRect();
+
+      joystickCenter = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      };
+
+      updateJoystick(touch);
+    },
+    { passive: false }
+  );
+
+  joystick.addEventListener(
+    "touchmove",
+    function (event) {
+      event.preventDefault();
+
+      const touch = getTouchById(event.touches, joystickTouchId);
+
+      if (touch) {
+        updateJoystick(touch);
+      }
+    },
+    { passive: false }
+  );
+
+  function endJoystick(event) {
+    const touch = getTouchById(event.changedTouches, joystickTouchId);
+
+    if (touch) {
+      joystickTouchId = null;
+      joystickCenter = null;
+      knob.style.transform = "translate(0px,0px)";
+      clearTouchMovementKeys();
+    }
+  }
+
+  joystick.addEventListener("touchend", endJoystick, { passive: false });
+  joystick.addEventListener("touchcancel", endJoystick, { passive: false });
+
+  let lookTouchId = null;
+  let lastLook = null;
+
+  lookArea.addEventListener(
+    "touchstart",
+    function (event) {
+      event.preventDefault();
+
+      if (!shouldUseTouch() || isAnyOverlayOpenPart20()) {
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+      lookTouchId = touch.identifier;
+
+      lastLook = {
+        x: touch.clientX,
+        y: touch.clientY
+      };
+    },
+    { passive: false }
+  );
+
+  lookArea.addEventListener(
+    "touchmove",
+    function (event) {
+      event.preventDefault();
+
+      const touch = getTouchById(event.touches, lookTouchId);
+
+      if (!touch || !lastLook) {
+        return;
+      }
+
+      if (isAnyOverlayOpenPart20() || isPart7DeadNow()) {
+        return;
+      }
+
+      const dx = touch.clientX - lastLook.x;
+      const dy = touch.clientY - lastLook.y;
+
+      lastLook = {
+        x: touch.clientX,
+        y: touch.clientY
+      };
+
+      const sensitivity = settings.lookSensitivity * 0.004;
+
+      yaw -= dx * sensitivity;
+      pitch -= dy * sensitivity;
+
+      const maxPitch = Math.PI / 2 - 0.01;
+
+      if (pitch > maxPitch) {
+        pitch = maxPitch;
+      }
+
+      if (pitch < -maxPitch) {
+        pitch = -maxPitch;
+      }
+
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+      camera.rotation.z = 0;
+    },
+    { passive: false }
+  );
+
+  function endLook(event) {
+    const touch = getTouchById(event.changedTouches, lookTouchId);
+
+    if (touch) {
+      lookTouchId = null;
+      lastLook = null;
+    }
+  }
+
+  lookArea.addEventListener("touchend", endLook, { passive: false });
+  lookArea.addEventListener("touchcancel", endLook, { passive: false });
+
+  function simulateMouseButton(button) {
+    try {
+      const common = {
+        button: button,
+        bubbles: true,
+        cancelable: true,
+        view: window
+      };
+
+      if (window.PointerEvent) {
+        document.dispatchEvent(
+          new PointerEvent(
+            "pointerdown",
+            Object.assign(
+              {
+                pointerId: 1,
+                pointerType: "touch",
+                isPrimary: true
+              },
+              common
+            )
+          )
+        );
+      }
+
+      document.dispatchEvent(new MouseEvent("mousedown", common));
+
+      setTimeout(function () {
+        if (window.PointerEvent) {
+          document.dispatchEvent(
+            new PointerEvent(
+              "pointerup",
+              Object.assign(
+                {
+                  pointerId: 1,
+                  pointerType: "touch",
+                  isPrimary: true
+                },
+                common
+              )
+            )
+          );
+        }
+
+        document.dispatchEvent(new MouseEvent("mouseup", common));
+      }, 70);
+    } catch (error) {}
+  }
+
+  function simulateKey(code) {
+    try {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: code,
+          bubbles: true,
+          cancelable: true
+        })
+      );
+
+      setTimeout(function () {
+        document.dispatchEvent(
+          new KeyboardEvent("keyup", {
+            code: code,
+            bubbles: true,
+            cancelable: true
+          })
+        );
+      }, 60);
+    } catch (error) {}
+  }
+
+  jumpBtn.addEventListener(
+    "touchstart",
+    function (event) {
+      event.preventDefault();
+
+      if (isAnyOverlayOpenPart20() || isPart7DeadNow()) {
+        return;
+      }
+
+      if (typeof keys === "object") {
+        keys["Space"] = true;
+      }
+    },
+    { passive: false }
+  );
+
+  function releaseJump(event) {
+    event.preventDefault();
+
+    if (typeof keys === "object") {
+      keys["Space"] = false;
+    }
+  }
+
+  jumpBtn.addEventListener("touchend", releaseJump, { passive: false });
+  jumpBtn.addEventListener("touchcancel", releaseJump, { passive: false });
+
+  mineBtn.addEventListener(
+    "touchstart",
+    function (event) {
+      event.preventDefault();
+
+      if (isAnyOverlayOpenPart20() || isPart7DeadNow()) {
+        return;
+      }
+
+      simulateMouseButton(0);
+    },
+    { passive: false }
+  );
+
+  placeBtn.addEventListener(
+    "touchstart",
+    function (event) {
+      event.preventDefault();
+
+      if (isAnyOverlayOpenPart20() || isPart7DeadNow()) {
+        return;
+      }
+
+      simulateMouseButton(2);
+    },
+    { passive: false }
+  );
+
+  invBtn.addEventListener(
+    "touchstart",
+    function (event) {
+      event.preventDefault();
+
+      if (isAnyOverlayOpenPart20() || isPart7DeadNow()) {
+        return;
+      }
+
+      simulateKey("KeyE");
+    },
+    { passive: false }
+  );
+
+  menuBtn.addEventListener(
+    "touchstart",
+    function (event) {
+      event.preventDefault();
+
+      if (isPart15MenuVisible() || isAnyOverlayOpenPart20()) {
+        return;
+      }
+
+      clearTouchMovementKeys();
+      setFakeLock(false);
+    },
+    { passive: false }
+  );
+
+  window.addEventListener(
+    "contextmenu",
+    function (event) {
+      if (shouldUseTouch()) {
+        event.preventDefault();
+      }
+    },
+    { passive: false }
+  );
+
+  const part20Clock = new THREE.Clock();
+
+  function part20Loop() {
+    requestAnimationFrame(part20Loop);
+
+    part20Clock.getDelta();
+
+    const touchActive = shouldUseTouch();
+    const menuVisible = isPart15MenuVisible();
+
+    if (touchActive) {
+      if (menuVisible) {
+        setFakeLock(false);
+      } else {
+        setFakeLock(true);
+      }
+    } else {
+      setFakeLock(false);
+    }
+
+    const showControls =
+      touchActive &&
+      !menuVisible &&
+      !isAnyOverlayOpenPart20() &&
+      !isPart7DeadNow();
+
+    controlsRoot.style.display = showControls ? "block" : "none";
+
+    gearBtn.style.display =
+      touchActive || settings.touchMode !== "off" ? "flex" : "none";
+
+    if (!showControls) {
+      clearTouchMovementKeys();
+
+      if (typeof keys === "object") {
+        keys["Space"] = false;
+      }
+    }
+  }
+
+  updatePart20SettingLabels();
+  applyPart20Settings();
+  part20Loop();
+
+  showPart20Message(
+    "Part 20: کۆنترۆڵی مۆبایل زیادکرا — ⚙ بۆ ڕێکخستن"
+  );
+})();
+</script>
