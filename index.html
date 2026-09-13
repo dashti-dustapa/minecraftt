@@ -14753,3 +14753,598 @@
   }
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 26: Part 1 پێویستە.");
+    return;
+  }
+
+  if (window.__minicraftPart26Loaded) return;
+  window.__minicraftPart26Loaded = true;
+
+  var CHUNK = 16;
+  var Y_MIN = -4;
+  var Y_MAX = 32;
+
+  var INDIVIDUAL = {
+    water: 1, glass: 1, ladder: 1, torch: 1,
+    flower_red: 1, flower_yellow: 1, tall_grass: 1
+  };
+
+  var SEE_THROUGH = {
+    water: 1, glass: 1, ladder: 1, torch: 1,
+    flower_red: 1, flower_yellow: 1, tall_grass: 1, leaves: 1
+  };
+
+  function isMerged(type) {
+    return !!type && !INDIVIDUAL[type];
+  }
+
+  function chat26(text) {
+    var el = document.getElementById("part24-chat");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "part24-chat";
+      el.style.cssText = "position:fixed;left:8px;bottom:84px;z-index:97;color:#fff;font:13px monospace;text-shadow:1px 1px 0 #000;pointer-events:none;";
+      document.body.appendChild(el);
+    }
+    el.innerText = text;
+    el.style.opacity = "1";
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.style.opacity = "0"; }, 4000);
+  }
+
+  /* ---------- textures for grass faces ---------- */
+  function tex26(draw) {
+    var c = document.createElement("canvas");
+    c.width = 16; c.height = 16;
+    var g = c.getContext("2d");
+    draw(g);
+    var t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.generateMipmaps = false;
+    return t;
+  }
+  function rnd26(a, b) { return a + Math.random() * (b - a); }
+
+  var grassTopBase = new THREE.MeshLambertMaterial({
+    map: tex26(function (g) {
+      var pal = ["#5fc24e", "#54b344", "#69cf59", "#4da33d"];
+      for (var x = 0; x < 16; x++) for (var y = 0; y < 16; y++) {
+        g.fillStyle = pal[(Math.random() * 4) | 0];
+        g.fillRect(x, y, 1, 1);
+      }
+    })
+  });
+
+  var grassSideBase = new THREE.MeshLambertMaterial({
+    map: tex26(function (g) {
+      var dp = ["#8a5a2b", "#9b6a3a", "#7a4f21"];
+      var gp = ["#5fc24e", "#54b344", "#69cf59"];
+      for (var x = 0; x < 16; x++) for (var y = 0; y < 16; y++) {
+        g.fillStyle = dp[(Math.random() * 3) | 0];
+        g.fillRect(x, y, 1, 1);
+      }
+      for (var x2 = 0; x2 < 16; x2++) {
+        var d = 2 + ((Math.random() * 3) | 0);
+        for (var y2 = 0; y2 < d; y2++) {
+          g.fillStyle = gp[(Math.random() * 3) | 0];
+          g.fillRect(x2, y2, 1, 1);
+        }
+      }
+    })
+  });
+
+  var grassDirtBase = new THREE.MeshLambertMaterial({
+    map: tex26(function (g) {
+      var dp = ["#8a5a2b", "#9b6a3a", "#7a4f21"];
+      for (var x = 0; x < 16; x++) for (var y = 0; y < 16; y++) {
+        g.fillStyle = dp[(Math.random() * 3) | 0];
+        g.fillRect(x, y, 1, 1);
+      }
+    })
+  });
+
+  var mergedMatCache = {};
+  var SHADE = [0.8, 0.8, 1.0, 0.5, 0.65, 0.65];
+
+  function getMergedMaterial(type, dir) {
+    var key = type + ":" + dir;
+    if (mergedMatCache[key]) return mergedMatCache[key];
+    var base;
+    if (type === "grass") {
+      base = dir === 2 ? grassTopBase : dir === 3 ? grassDirtBase : grassSideBase;
+    } else {
+      base = materials[type] || materials.stone;
+    }
+    var m = base.clone();
+    m.vertexColors = true;
+    mergedMatCache[key] = m;
+    return m;
+  }
+
+  var CORNERS = [
+    [[1,0,1],[1,0,0],[1,1,0],[1,1,1]],
+    [[0,0,0],[0,0,1],[0,1,1],[0,1,0]],
+    [[0,1,1],[1,1,1],[1,1,0],[0,1,0]],
+    [[0,0,0],[1,0,0],[1,0,1],[0,0,1]],
+    [[0,0,1],[1,0,1],[1,1,1],[0,1,1]],
+    [[1,0,0],[0,0,0],[0,1,0],[1,1,0]]
+  ];
+  var NORMALS = [
+    [1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]
+  ];
+  var UVS = [[0,0],[1,0],[1,1],[0,1]];
+
+  function chunkOf(v) { return Math.floor(v / CHUNK); }
+  function chunkKey(cx, cz) { return cx + "," + cz; }
+
+  var chunkMeshes = {};
+  var dirtySet = {};
+  var dirtyCount = 0;
+
+  function markDirty(cx, cz) {
+    var k = chunkKey(cx, cz);
+    if (!dirtySet[k]) { dirtySet[k] = true; dirtyCount++; }
+  }
+  function markAround(x, z) {
+    markDirty(chunkOf(x), chunkOf(z));
+    markDirty(chunkOf(x + 1), chunkOf(z));
+    markDirty(chunkOf(x - 1), chunkOf(z));
+    markDirty(chunkOf(x), chunkOf(z + 1));
+    markDirty(chunkOf(x), chunkOf(z - 1));
+  }
+
+  function blockTypeAt(x, y, z) {
+    var m = blocks.get(blockKey(x, y, z));
+    return m ? m.userData.type : null;
+  }
+
+  function hashTint(x, y, z) {
+    var h = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
+    h = (h ^ (h >> 13)) * 1274126177;
+    h = (h ^ (h >> 16)) >>> 0;
+    return 0.96 + (h % 1000) / 1000 * 0.07;
+  }
+
+  function rebuildChunk(cx, cz) {
+    var k = chunkKey(cx, cz);
+    var old = chunkMeshes[k];
+    if (old) {
+      for (var i = 0; i < old.length; i++) {
+        scene.remove(old[i]);
+        old[i].geometry.dispose();
+      }
+    }
+    chunkMeshes[k] = [];
+
+    var builders = {};
+
+    function builderFor(type, dir) {
+      var bk = type + ":" + dir;
+      if (!builders[bk]) {
+        builders[bk] = { type: type, dir: dir, pos: [], nrm: [], uv: [], col: [], idx: [], count: 0 };
+      }
+      return builders[bk];
+    }
+
+    var x0 = cx * CHUNK, z0 = cz * CHUNK;
+
+    for (var x = x0; x < x0 + CHUNK; x++) {
+      for (var z = z0; z < z0 + CHUNK; z++) {
+        for (var y = Y_MIN; y <= Y_MAX; y++) {
+          var m = blocks.get(blockKey(x, y, z));
+          if (!m || !m.userData) continue;
+          var type = m.userData.type;
+          if (!isMerged(type)) continue;
+          var tint = hashTint(x, y, z);
+
+          for (var d = 0; d < 6; d++) {
+            var nx = x + NORMALS[d][0];
+            var ny = y + NORMALS[d][1];
+            var nz = z + NORMALS[d][2];
+            var nt = blockTypeAt(nx, ny, nz);
+
+            if (nt !== null && !SEE_THROUGH[nt]) continue;
+            if (type === "leaves" && nt === "leaves") continue;
+
+            var b = builderFor(type, d);
+            var shade = SHADE[d] * tint;
+            var base = b.count;
+            var C = CORNERS[d], N = NORMALS[d];
+
+            for (var q = 0; q < 4; q++) {
+              b.pos.push(x + C[q][0], y + C[q][1], z + C[q][2]);
+              b.nrm.push(N[0], N[1], N[2]);
+              b.uv.push(UVS[q][0], UVS[q][1]);
+              b.col.push(shade, shade, shade);
+            }
+            b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+            b.count += 4;
+          }
+        }
+      }
+    }
+
+    for (var bk2 in builders) {
+      var bb = builders[bk2];
+      if (bb.count === 0) continue;
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(bb.pos, 3));
+      geo.setAttribute("normal", new THREE.Float32BufferAttribute(bb.nrm, 3));
+      geo.setAttribute("uv", new THREE.Float32BufferAttribute(bb.uv, 2));
+      geo.setAttribute("color", new THREE.Float32BufferAttribute(bb.col, 3));
+      geo.setIndex(bb.idx);
+      geo.computeBoundingSphere();
+
+      var mesh = new THREE.Mesh(geo, getMergedMaterial(bb.type, bb.dir));
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      mesh.userData.isChunk = true;
+      scene.add(mesh);
+      chunkMeshes[k].push(mesh);
+    }
+  }
+
+  /* hide individual merged meshes from scene */
+  function detachMergedMesh(mesh) {
+    if (mesh && mesh.parent === scene) {
+      scene.remove(mesh);
+    }
+    if (mesh) mesh.updateMatrixWorld();
+  }
+
+  blocks.forEach(function (mesh) {
+    if (mesh && mesh.userData && isMerged(mesh.userData.type)) {
+      detachMergedMesh(mesh);
+    }
+  });
+
+  var prevAdd26 = addBlock;
+  addBlock = function (x, y, z, type) {
+    prevAdd26(x, y, z, type);
+    var m = blocks.get(blockKey(x, y, z));
+    if (isMerged(type)) {
+      detachMergedMesh(m);
+      markAround(x, z);
+    } else if (m) {
+      markAround(x, z);
+    }
+  };
+
+  var prevRemove26 = removeBlock;
+  removeBlock = function (x, y, z) {
+    prevRemove26(x, y, z);
+    markAround(x, z);
+  };
+
+  /* ---------- world expand ---------- */
+  var currentHalf = 12;
+
+  function expandWorld(half) {
+    for (var x = -half; x <= half; x++) {
+      for (var z = -half; z <= half; z++) {
+        if (blocks.has(blockKey(x, -3, z))) continue;
+        var height = Math.max(0, Math.floor(Math.sin(x * 0.18) * Math.cos(z * 0.18) * 2));
+        for (var y = -3; y <= height; y++) {
+          var t = "stone";
+          if (y === -3) t = "bedrock";
+          else if (y === height) t = "grass";
+          else if (y >= height - 2) t = "dirt";
+          addBlock(x, y, z, t);
+        }
+      }
+    }
+    for (var x2 = -half; x2 <= half; x2++) {
+      for (var z2 = -half; z2 <= half; z2++) {
+        var top = null;
+        for (var yy = 6; yy >= -3; yy--) {
+          var tt = blockTypeAt(x2, yy, z2);
+          if (tt && tt !== "water" && tt !== "leaves") { top = yy; break; }
+        }
+        if (top === null) continue;
+        var bt = blockTypeAt(x2, top, z2);
+        if (bt === "stone" && Math.random() < 0.06) {
+          var r = Math.random();
+          var ore = r < 0.55 ? "coal_ore" : r < 0.8 ? "iron_ore" : r < 0.93 ? "gold_ore" : "diamond_ore";
+          removeBlock(x2, top, z2);
+          addBlock(x2, top, z2, ore);
+        } else if (bt === "grass") {
+          if (Math.random() < 0.02 && !blocks.has(blockKey(x2, top + 1, z2))) {
+            addTree26(x2, top, z2);
+          } else if (Math.random() < 0.03 && !blocks.has(blockKey(x2, top + 1, z2))) {
+            addBlock(x2, top + 1, z2, Math.random() < 0.5 ? "flower_red" : "tall_grass");
+          }
+        }
+      }
+    }
+    currentHalf = half;
+  }
+
+  function addTree26(x, groundY, z) {
+    var trunk = 4;
+    for (var y = 1; y <= trunk; y++) addBlock(x, groundY + y, z, "wood");
+    var topY = groundY + trunk;
+    for (var dy = 0; dy <= 2; dy++) {
+      var rad = dy === 2 ? 1 : 2;
+      for (var dx = -rad; dx <= rad; dx++) {
+        for (var dz = -rad; dz <= rad; dz++) {
+          if (dy < 2 && dx === 0 && dz === 0) continue;
+          if (dy === 2 && Math.abs(dx) + Math.abs(dz) > 1) continue;
+          addBlock(x + dx, topY + dy, z + dz, "leaves");
+        }
+      }
+    }
+  }
+
+  var prevGen26 = generateWorld;
+  generateWorld = function () {
+    prevGen26();
+    expandWorld(Math.max(currentHalf, 32));
+  };
+
+  expandWorld(32);
+
+  window.addEventListener("keydown", function (e) {
+    if (e.code !== "KeyJ") return;
+    var menu = document.getElementById("part15-menu");
+    if (menu && menu.style.display !== "none") return;
+    expandWorld(currentHalf + 16);
+    chat26("جیهان گەورەتر بوو: " + (currentHalf * 2) + "×" + (currentHalf * 2));
+    e.stopImmediatePropagation();
+  }, true);
+
+  /* ---------- fast DDA raycast ---------- */
+  var mobSuppress = false;
+  var currentMobHit = null;
+
+  function ddaRay(origin, dir, maxDist) {
+    var x = Math.floor(origin.x + 0.5);
+    var y = Math.floor(origin.y + 0.5);
+    var z = Math.floor(origin.z + 0.5);
+
+    var stepX = dir.x > 0 ? 1 : -1;
+    var stepY = dir.y > 0 ? 1 : -1;
+    var stepZ = dir.z > 0 ? 1 : -1;
+
+    var tDX = dir.x !== 0 ? Math.abs(1 / dir.x) : Infinity;
+    var tDY = dir.y !== 0 ? Math.abs(1 / dir.y) : Infinity;
+    var tDZ = dir.z !== 0 ? Math.abs(1 / dir.z) : Infinity;
+
+    var tMX = dir.x !== 0 ? (stepX > 0 ? (x + 0.5 - origin.x) : (origin.x - (x - 0.5))) * tDX : Infinity;
+    var tMY = dir.y !== 0 ? (stepY > 0 ? (y + 0.5 - origin.y) : (origin.y - (y - 0.5))) * tDY : Infinity;
+    var tMZ = dir.z !== 0 ? (stepZ > 0 ? (z + 0.5 - origin.z) : (origin.z - (z - 0.5))) * tDZ : Infinity;
+
+    var nx = 0, ny = 0, nz = 0;
+    var t = 0;
+
+    for (var i = 0; i < 128; i++) {
+      if (tMX < tMY && tMX < tMZ) {
+        x += stepX; t = tMX; tMX += tDX; nx = -stepX; ny = 0; nz = 0;
+      } else if (tMY < tMZ) {
+        y += stepY; t = tMY; tMY += tDY; nx = 0; ny = -stepY; nz = 0;
+      } else {
+        z += stepZ; t = tMZ; tMZ += tDZ; nx = 0; ny = 0; nz = -stepZ;
+      }
+      if (t > maxDist) return null;
+      var m = blocks.get(blockKey(x, y, z));
+      if (m && m.userData) {
+        return { x: x, y: y, z: z, type: m.userData.type, nx: nx, ny: ny, nz: nz, dist: t };
+      }
+    }
+    return null;
+  }
+
+  raycastBlocks = function () {
+    if (mobSuppress) return [];
+    var dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    var hit = ddaRay(camera.position, dir, 6);
+    if (!hit) return [];
+    return [{
+      object: {
+        userData: { x: hit.x, y: hit.y, z: hit.z, type: hit.type },
+        position: new THREE.Vector3(hit.x, hit.y, hit.z)
+      },
+      face: { normal: new THREE.Vector3(hit.nx, hit.ny, hit.nz) },
+      distance: hit.dist
+    }];
+  };
+
+  /* ---------- mob attack ---------- */
+  var mobGroups = [];
+  var mobScanTimer = 0;
+  var mobHits = {};
+  var mobFlash = {};
+  var hostileCooldown = {};
+  var puffs = [];
+
+  function scanMobGroups() {
+    mobGroups = [];
+    for (var i = 0; i < scene.children.length; i++) {
+      var o = scene.children[i];
+      if (o.isGroup && o.children.length > 0 && o.children[0].isMesh) {
+        mobGroups.push(o);
+      }
+    }
+  }
+  scanMobGroups();
+
+  var mobRaycaster = new THREE.Raycaster();
+  mobRaycaster.far = 4;
+
+  function computeMobTarget() {
+    var dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    mobRaycaster.set(camera.position, dir);
+    var hits = mobRaycaster.intersectObjects(mobGroups, true);
+    if (!hits.length) return null;
+    var blockHit = ddaRay(camera.position, dir, 6);
+    if (blockHit && blockHit.dist < hits[0].distance) return null;
+    return hits[0];
+  }
+
+  function findGroupOf(obj) {
+    var cur = obj;
+    while (cur) {
+      if (cur.isGroup && mobGroups.indexOf(cur) !== -1) return cur;
+      cur = cur.parent;
+    }
+    return null;
+  }
+
+  function spawnPuff(pos) {
+    for (var i = 0; i < 10; i++) {
+      var geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+      var mat = new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.9 });
+      var m = new THREE.Mesh(geo, mat);
+      m.position.copy(pos);
+      m.position.y += 0.6;
+      scene.add(m);
+      puffs.push({
+        mesh: m,
+        vel: new THREE.Vector3(rnd26(-2, 2), rnd26(1, 3.5), rnd26(-2, 2)),
+        life: 0.5
+      });
+    }
+  }
+
+  function damageMob(hit) {
+    var group = findGroupOf(hit.object);
+    if (!group) return;
+    var id = group.id;
+    mobHits[id] = (mobHits[id] || 0) + 1;
+
+    var dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    group.position.addScaledVector(dir, 0.7);
+    group.position.y += 0.3;
+
+    if (!mobFlash[id]) {
+      mobFlash[id] = [];
+      group.traverse(function (o) {
+        if (o.isMesh && o.material && o.material.color) {
+          mobFlash[id].push({ mat: o.material, hex: o.material.color.getHex() });
+        }
+      });
+    }
+    for (var i = 0; i < mobFlash[id].length; i++) {
+      mobFlash[id][i].mat.color.setHex(0xff4040);
+    }
+    setTimeout(function () {
+      if (mobFlash[id]) {
+        for (var j = 0; j < mobFlash[id].length; j++) {
+          mobFlash[id][j].mat.color.setHex(mobFlash[id][j].hex);
+        }
+      }
+    }, 120);
+
+    if (mobHits[id] >= 3) {
+      delete mobHits[id];
+      spawnPuff(group.position);
+      group.position.y = -100;
+      chat26("مۆب کوژرا!");
+    }
+  }
+
+  window.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) { mobSuppress = false; currentMobHit = null; return; }
+    currentMobHit = computeMobTarget();
+    mobSuppress = !!currentMobHit;
+  }, true);
+
+  function resetMobSuppress() {
+    mobSuppress = false;
+    currentMobHit = null;
+  }
+  window.addEventListener("pointerup", resetMobSuppress, true);
+  window.addEventListener("pointercancel", resetMobSuppress, true);
+
+  window.addEventListener("mousedown", function (e) {
+    if (e.button === 0 && currentMobHit) {
+      damageMob(currentMobHit);
+    }
+  }, true);
+
+  function flashDamageOverlay() {
+    var d = document.getElementById("part7-damage");
+    if (!d) return;
+    d.style.opacity = "0.35";
+    setTimeout(function () { d.style.opacity = "0"; }, 140);
+  }
+
+  /* ---------- main loop ---------- */
+  var clock26 = new THREE.Clock();
+  var safetyTimer = 0;
+
+  function part26Loop() {
+    requestAnimationFrame(part26Loop);
+    var delta = Math.min(clock26.getDelta(), 0.05);
+
+    if (dirtyCount > 0) {
+      for (var k in dirtySet) {
+        if (dirtySet[k]) {
+          dirtySet[k] = false;
+          dirtyCount--;
+          var parts = k.split(",");
+          rebuildChunk(parseInt(parts[0], 10), parseInt(parts[1], 10));
+          break;
+        }
+      }
+    }
+
+    safetyTimer -= delta;
+    if (safetyTimer <= 0) {
+      safetyTimer = 4;
+      markDirty(chunkOf(player.x), chunkOf(player.z));
+    }
+
+    mobScanTimer -= delta;
+    if (mobScanTimer <= 0) {
+      mobScanTimer = 2;
+      scanMobGroups();
+    }
+
+    for (var i = 0; i < mobGroups.length; i++) {
+      var g = mobGroups[i];
+      if (!g || !g.children[0] || !g.children[0].material) continue;
+      var hex = g.children[0].material.color ? g.children[0].material.color.getHexString() : "";
+      if (hex !== "3e7a3e" && hex !== "d0d0d0") continue;
+      var dx = player.x - g.position.x;
+      var dz = player.z - g.position.z;
+      var d2 = dx * dx + dz * dz;
+      if (d2 < 1.7) {
+        var cd = hostileCooldown[g.id] || 0;
+        if (clock26.elapsedTime > cd) {
+          hostileCooldown[g.id] = clock26.elapsedTime + 1.2;
+          velocity.x += dx * 2.2;
+          velocity.z += dz * 2.2;
+          velocity.y = 4;
+          flashDamageOverlay();
+        }
+      }
+    }
+
+    for (var p = puffs.length - 1; p >= 0; p--) {
+      var pf = puffs[p];
+      pf.life -= delta;
+      if (pf.life <= 0) {
+        scene.remove(pf.mesh);
+        pf.mesh.geometry.dispose();
+        pf.mesh.material.dispose();
+        puffs.splice(p, 1);
+        continue;
+      }
+      pf.vel.y -= 9 * delta;
+      pf.mesh.position.addScaledVector(pf.vel, delta);
+      pf.mesh.material.opacity = pf.life * 1.8;
+    }
+  }
+
+  part26Loop();
+
+  chat26("Part 26: جیهانی گەورە + هێرش بۆ مۆب + FPS چاککرا");
+})();
+</script>
