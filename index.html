@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Minecraft JS - Web Voxel Engine</title>
+    <title>Minecraft Web - Voxel Engine</title>
     <style>
         * {
             box-sizing: border-box;
@@ -19,7 +19,7 @@
             overflow: hidden;
             background-color: #000;
             font-family: 'Courier New', Courier, monospace;
-            color: #fff;
+            color: #ffffff;
         }
 
         #game-canvas {
@@ -32,7 +32,6 @@
             z-index: 1;
         }
 
-        /* Crosshair */
         #crosshair {
             position: absolute;
             top: 50%;
@@ -65,7 +64,6 @@
             height: 18px;
         }
 
-        /* F3 Debug Screen */
         #debug-overlay {
             position: absolute;
             top: 10px;
@@ -80,7 +78,6 @@
             text-shadow: 1px 1px 0 #000;
         }
 
-        /* Hotbar HUD */
         #hotbar {
             position: absolute;
             bottom: 15px;
@@ -105,10 +102,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             color: #fff;
             text-shadow: 1px 1px #000;
+            text-align: center;
         }
 
         .hotbar-slot.active {
@@ -125,7 +123,6 @@
             color: #ddd;
         }
 
-        /* Pause Screen */
         #pause-screen {
             position: absolute;
             top: 0;
@@ -147,9 +144,9 @@
         }
 
         .game-title {
-            font-size: 44px;
+            font-size: 46px;
             letter-spacing: 4px;
-            color: #eee;
+            color: #eeeeee;
             text-shadow: 3px 3px #222;
             margin-bottom: 4px;
         }
@@ -182,11 +179,11 @@
 
         .instructions {
             background: rgba(0, 0, 0, 0.5);
-            padding: 12px;
+            padding: 14px;
             border: 1px solid #444;
             text-align: left;
             font-size: 12px;
-            line-height: 1.6;
+            line-height: 1.7;
             color: #ccc;
         }
 
@@ -204,10 +201,10 @@
     <div id="crosshair"></div>
 
     <div id="debug-overlay">
-        <p>Minecraft JS Engine</p>
+        <p>Minecraft Web Engine</p>
         <p id="debug-fps">FPS: 60</p>
-        <p id="debug-pos">XYZ: 0 / 0 / 0</p>
-        <p id="debug-block">Selected: Grass</p>
+        <p id="debug-pos">XYZ: 0.0 / 0.0 / 0.0</p>
+        <p id="debug-block">Selected: Grass Block</p>
     </div>
 
     <div id="hotbar">
@@ -216,6 +213,8 @@
         <div class="hotbar-slot" data-slot="2"><span class="slot-key">3</span>Stone</div>
         <div class="hotbar-slot" data-slot="3"><span class="slot-key">4</span>Cobble</div>
         <div class="hotbar-slot" data-slot="4"><span class="slot-key">5</span>Wood</div>
+        <div class="hotbar-slot" data-slot="5"><span class="slot-key">6</span>Log</div>
+        <div class="hotbar-slot" data-slot="6"><span class="slot-key">7</span>Leaves</div>
     </div>
 
     <div id="pause-screen">
@@ -224,22 +223,21 @@
             <p class="game-subtitle">Pure WebGL Edition</p>
             <button id="btn-play" class="mc-btn">Click to Play</button>
             <div class="instructions">
-                <p><strong>WASD</strong> : Move / ڕۆیشتن</p>
-                <p><strong>SPACE</strong> : Jump / بازدان</p>
-                <p><strong>SHIFT</strong> : Sprint / ڕاکردن</p>
-                <p><strong>LEFT CLICK</strong> : Break Block / شکاندنی بلۆک</p>
-                <p><strong>RIGHT CLICK</strong> : Place Block / دانانی بلۆک</p>
-                <p><strong>1 - 5 / SCROLL</strong> : Select Item / هەڵبژاردنی بلۆک</p>
-                <p><strong>ESC</strong> : Pause / وەستان</p>
+                <p><strong>WASD</strong> : Move</p>
+                <p><strong>SPACE</strong> : Jump</p>
+                <p><strong>SHIFT</strong> : Sprint</p>
+                <p><strong>LEFT CLICK</strong> : Destroy Block</p>
+                <p><strong>RIGHT CLICK</strong> : Place Block</p>
+                <p><strong>1 - 7 / SCROLL</strong> : Select Hotbar Item</p>
+                <p><strong>ESC</strong> : Pause Menu</p>
             </div>
         </div>
     </div>
 
-    <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- 1. Procedural 16x16 Pixel Texture Generator ---
+        // --- 1. Procedural 16x16 Pixel Texture System ---
         function createPixelTexture(drawFn) {
             const canvas = document.createElement('canvas');
             canvas.width = 16;
@@ -292,7 +290,7 @@
                     ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
                 }
             }),
-            cobblestone: createPixelTexture(ctx => {
+            cobble: createPixelTexture(ctx => {
                 ctx.fillStyle = '#6c6c6c';
                 ctx.fillRect(0, 0, 16, 16);
                 ctx.fillStyle = '#3a3a3a';
@@ -309,6 +307,28 @@
                 ctx.fillRect(0, 3, 16, 1);
                 ctx.fillRect(0, 7, 16, 1);
                 ctx.fillRect(0, 11, 16, 1);
+            }),
+            log_side: createPixelTexture(ctx => {
+                ctx.fillStyle = '#6d5332';
+                ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#48361f';
+                for (let x = 0; x < 16; x += 4) ctx.fillRect(x, 0, 2, 16);
+            }),
+            log_top: createPixelTexture(ctx => {
+                ctx.fillStyle = '#8f6f47';
+                ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#6d5332';
+                ctx.fillRect(3, 3, 10, 10);
+                ctx.fillStyle = '#48361f';
+                ctx.fillRect(6, 6, 4, 4);
+            }),
+            leaves: createPixelTexture(ctx => {
+                ctx.fillStyle = '#3a6e22';
+                ctx.fillRect(0, 0, 16, 16);
+                for (let i = 0; i < 50; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#2d541a' : '#4d8a30';
+                    ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                }
             })
         };
 
@@ -323,21 +343,32 @@
             ],
             dirt: new THREE.MeshLambertMaterial({ map: textures.dirt }),
             stone: new THREE.MeshLambertMaterial({ map: textures.stone }),
-            cobble: new THREE.MeshLambertMaterial({ map: textures.cobblestone }),
-            plank: new THREE.MeshLambertMaterial({ map: textures.plank })
+            cobble: new THREE.MeshLambertMaterial({ map: textures.cobble }),
+            plank: new THREE.MeshLambertMaterial({ map: textures.plank }),
+            log: [
+                new THREE.MeshLambertMaterial({ map: textures.log_side }),
+                new THREE.MeshLambertMaterial({ map: textures.log_side }),
+                new THREE.MeshLambertMaterial({ map: textures.log_top }),
+                new THREE.MeshLambertMaterial({ map: textures.log_top }),
+                new THREE.MeshLambertMaterial({ map: textures.log_side }),
+                new THREE.MeshLambertMaterial({ map: textures.log_side })
+            ],
+            leaves: new THREE.MeshLambertMaterial({ map: textures.leaves })
         };
 
         const BLOCK_TYPES = [
-            { name: 'Grass', mat: materials.grass },
+            { name: 'Grass Block', mat: materials.grass },
             { name: 'Dirt', mat: materials.dirt },
             { name: 'Stone', mat: materials.stone },
             { name: 'Cobblestone', mat: materials.cobble },
-            { name: 'Wood Plank', mat: materials.plank }
+            { name: 'Oak Planks', mat: materials.plank },
+            { name: 'Oak Log', mat: materials.log },
+            { name: 'Oak Leaves', mat: materials.leaves }
         ];
 
         let selectedBlockIndex = 0;
 
-        // --- 2. Three.js Scene Setup ---
+        // --- 2. Scene Setup ---
         const canvas = document.getElementById('game-canvas');
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -354,12 +385,38 @@
         scene.add(ambientLight);
 
         const sunLight = new THREE.DirectionalLight(0xffffff, 0.75);
-        sunLight.position.set(40, 80, 40);
+        sunLight.position.set(50, 100, 50);
         scene.add(sunLight);
 
-        // --- 3. Voxel World Generation ---
-        const WORLD_SIZE = 24;
-        const WORLD_HEIGHT = 16;
+        // --- 3. Pixel Clouds ---
+        const cloudCanvas = document.createElement('canvas');
+        cloudCanvas.width = 128;
+        cloudCanvas.height = 128;
+        const cloudCtx = cloudCanvas.getContext('2d');
+        cloudCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        for (let i = 0; i < 25; i++) {
+            cloudCtx.fillRect(
+                Math.floor(Math.random() * 100),
+                Math.floor(Math.random() * 100),
+                Math.floor(Math.random() * 25 + 10),
+                Math.floor(Math.random() * 25 + 10)
+            );
+        }
+        const cloudTexture = new THREE.CanvasTexture(cloudCanvas);
+        cloudTexture.wrapS = THREE.RepeatWrapping;
+        cloudTexture.wrapT = THREE.RepeatWrapping;
+        cloudTexture.repeat.set(4, 4);
+
+        const cloudMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(600, 600),
+            new THREE.MeshBasicMaterial({ map: cloudTexture, transparent: true, opacity: 0.65, depthWrite: false })
+        );
+        cloudMesh.rotation.x = Math.PI / 2;
+        cloudMesh.position.y = 45;
+        scene.add(cloudMesh);
+
+        // --- 4. World Generation & Trees ---
+        const WORLD_SIZE = 30;
         const worldBlocks = new Map();
         const blockGeometry = new THREE.BoxGeometry(1, 1, 1);
 
@@ -367,14 +424,20 @@
             return `${x},${y},${z}`;
         }
 
+        function hasBlock(x, y, z) {
+            return worldBlocks.has(posKey(x, y, z));
+        }
+
         function createBlock(x, y, z, typeIndex) {
+            const key = posKey(x, y, z);
+            if (worldBlocks.has(key)) return;
+
             const blockDef = BLOCK_TYPES[typeIndex];
             const mesh = new THREE.Mesh(blockGeometry, blockDef.mat);
             mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
             mesh.userData = { x, y, z, typeIndex };
             scene.add(mesh);
-            worldBlocks.set(posKey(x, y, z), mesh);
-            return mesh;
+            worldBlocks.set(key, mesh);
         }
 
         function removeBlock(x, y, z) {
@@ -386,13 +449,34 @@
             }
         }
 
+        function growTree(baseX, baseY, baseZ) {
+            const trunkHeight = 4 + Math.floor(Math.random() * 2);
+            for (let i = 0; i < trunkHeight; i++) {
+                createBlock(baseX, baseY + i, baseZ, 5); // Oak Log
+            }
+            const leafStart = baseY + trunkHeight - 2;
+            for (let lx = -2; lx <= 2; lx++) {
+                for (let lz = -2; lz <= 2; lz++) {
+                    for (let ly = 0; ly <= 2; ly++) {
+                        if (Math.abs(lx) === 2 && Math.abs(lz) === 2 && Math.random() > 0.4) continue;
+                        if (!hasBlock(baseX + lx, leafStart + ly, baseZ + lz)) {
+                            createBlock(baseX + lx, leafStart + ly, baseZ + lz, 6); // Leaves
+                        }
+                    }
+                }
+            }
+        }
+
         // Generate Rolling Hills
         for (let x = -WORLD_SIZE / 2; x < WORLD_SIZE / 2; x++) {
             for (let z = -WORLD_SIZE / 2; z < WORLD_SIZE / 2; z++) {
-                const height = Math.floor(5 + Math.sin(x * 0.3) * 2.5 + Math.cos(z * 0.3) * 2.5);
+                const height = Math.floor(5 + Math.sin(x * 0.25) * 2.5 + Math.cos(z * 0.25) * 2.5);
                 for (let y = 0; y <= height; y++) {
                     if (y === height) {
                         createBlock(x, y, z, 0); // Grass
+                        if (Math.random() < 0.02 && Math.abs(x) > 3 && Math.abs(z) > 3) {
+                            growTree(x, y + 1, z);
+                        }
                     } else if (y > height - 3) {
                         createBlock(x, y, z, 1); // Dirt
                     } else {
@@ -402,18 +486,38 @@
             }
         }
 
-        // --- 4. Player Controller & Physics ---
+        // --- 5. First-Person Hand (Held Item Viewmodel) ---
+        const handContainer = new THREE.Group();
+        camera.add(handContainer);
+        scene.add(camera);
+
+        const handItemMesh = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), BLOCK_TYPES[0].mat);
+        handItemMesh.position.set(0.48, -0.42, -0.65);
+        handItemMesh.rotation.set(0.2, -0.4, 0.1);
+        handContainer.add(handItemMesh);
+
+        let swingProgress = 0;
+        let isSwinging = false;
+
+        function updateHeldBlockVisual(index) {
+            handItemMesh.material = BLOCK_TYPES[index].mat;
+        }
+
+        // --- 6. Player Physics & 3D AABB Wall Collisions ---
         const player = {
-            pos: new THREE.Vector3(0, 12, 0),
+            pos: new THREE.Vector3(0, 16, 0),
             vel: new THREE.Vector3(),
             yaw: 0,
             pitch: 0,
-            height: 1.62,
+            radius: 0.3,
+            eyeHeight: 1.62,
+            totalHeight: 1.8,
             isGrounded: false
         };
 
         const keys = {};
         let isLocked = false;
+        let walkTimer = 0;
 
         const pauseScreen = document.getElementById('pause-screen');
         const playBtn = document.getElementById('btn-play');
@@ -442,9 +546,7 @@
             keys[e.code] = true;
             if (e.code.startsWith('Digit') && e.code !== 'Digit0') {
                 const num = parseInt(e.code.replace('Digit', '')) - 1;
-                if (num >= 0 && num < BLOCK_TYPES.length) {
-                    setSlot(num);
-                }
+                if (num >= 0 && num < BLOCK_TYPES.length) setSlot(num);
             }
         });
 
@@ -469,9 +571,29 @@
                 else s.classList.remove('active');
             });
             document.getElementById('debug-block').innerText = `Selected: ${BLOCK_TYPES[index].name}`;
+            updateHeldBlockVisual(index);
         }
 
-        // --- 5. Raycaster & Block Interaction ---
+        // Check if player's 3D bounding box overlaps any block
+        function checkCollisionAt(px, py, pz) {
+            const minX = Math.floor(px - player.radius);
+            const maxX = Math.floor(px + player.radius);
+            const minY = Math.floor(py - player.eyeHeight);
+            const maxY = Math.floor(py - player.eyeHeight + player.totalHeight);
+            const minZ = Math.floor(pz - player.radius);
+            const maxZ = Math.floor(pz + player.radius);
+
+            for (let x = minX; x <= maxX; x++) {
+                for (let y = minY; y <= maxY; y++) {
+                    for (let z = minZ; z <= maxZ; z++) {
+                        if (hasBlock(x, y, z)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // --- 7. Block Interaction ---
         const raycaster = new THREE.Raycaster();
         raycaster.far = 6.0;
 
@@ -484,24 +606,33 @@
         let targetHit = null;
 
         window.addEventListener('mousedown', (e) => {
-            if (!isLocked || !targetHit) return;
+            if (!isLocked) return;
+            isSwinging = true;
 
+            if (!targetHit) return;
             const mesh = targetHit.object;
             const data = mesh.userData;
 
             if (e.button === 0) {
-                // Left Click: Destroy Block
                 removeBlock(data.x, data.y, data.z);
             } else if (e.button === 2) {
-                // Right Click: Place Block
                 const normal = targetHit.face.normal;
                 const px = data.x + Math.round(normal.x);
                 const py = data.y + Math.round(normal.y);
                 const pz = data.z + Math.round(normal.z);
 
-                // Prevent placing block inside player's body
-                const pDist = player.pos.distanceTo(new THREE.Vector3(px + 0.5, py + 0.5, pz + 0.5));
-                if (pDist > 1.1) {
+                const playerMinY = player.pos.y - player.eyeHeight;
+                const playerMaxY = player.pos.y - player.eyeHeight + player.totalHeight;
+
+                const insidePlayer =
+                    px >= Math.floor(player.pos.x - player.radius) &&
+                    px <= Math.floor(player.pos.x + player.radius) &&
+                    pz >= Math.floor(player.pos.z - player.radius) &&
+                    pz <= Math.floor(player.pos.z + player.radius) &&
+                    py >= Math.floor(playerMinY) &&
+                    py <= Math.floor(playerMaxY);
+
+                if (!insidePlayer) {
                     createBlock(px, py, pz, selectedBlockIndex);
                 }
             }
@@ -509,7 +640,7 @@
 
         window.addEventListener('contextmenu', e => e.preventDefault());
 
-        // --- 6. Main Loop ---
+        // --- 8. Master Animation Loop ---
         let prevTime = performance.now();
         let frameCount = 0;
         let fpsTimer = 0;
@@ -520,7 +651,6 @@
             const delta = Math.min((time - prevTime) / 1000, 0.1);
             prevTime = time;
 
-            // FPS Counter
             frameCount++;
             fpsTimer += delta;
             if (fpsTimer >= 1.0) {
@@ -529,8 +659,9 @@
                 fpsTimer = 0;
             }
 
+            cloudMesh.position.x = (time * 0.002) % 60;
+
             if (isLocked) {
-                // WASD Direction vectors
                 const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
                 const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
                 const moveDir = new THREE.Vector3();
@@ -540,33 +671,38 @@
                 if (keys['KeyD']) moveDir.add(right);
                 if (keys['KeyA']) moveDir.sub(right);
 
-                if (moveDir.lengthSq() > 0) moveDir.normalize();
+                const isMoving = moveDir.lengthSq() > 0;
+                if (isMoving) moveDir.normalize();
 
-                const speed = keys['ShiftLeft'] ? 7.5 : 4.8;
+                const speed = keys['ShiftLeft'] ? 7.2 : 4.6;
                 player.vel.x = moveDir.x * speed;
                 player.vel.z = moveDir.z * speed;
-
-                // Gravity & Jump
                 player.vel.y -= 26.0 * delta;
 
-                // Simple Ground Collision
-                const checkX = Math.floor(player.pos.x);
-                const checkZ = Math.floor(player.pos.z);
-                let highestGround = -1;
-
-                for (let y = WORLD_HEIGHT; y >= 0; y--) {
-                    if (worldBlocks.has(posKey(checkX, y, checkZ))) {
-                        highestGround = y + 1;
-                        break;
-                    }
+                // 3D Axis-Separated AABB Wall Collision
+                const dx = player.vel.x * delta;
+                if (!checkCollisionAt(player.pos.x + dx, player.pos.y, player.pos.z)) {
+                    player.pos.x += dx;
+                } else {
+                    player.vel.x = 0;
                 }
 
-                if (player.pos.y + player.vel.y * delta <= highestGround + player.height) {
-                    player.pos.y = highestGround + player.height;
-                    player.vel.y = 0;
-                    player.isGrounded = true;
+                const dz = player.vel.z * delta;
+                if (!checkCollisionAt(player.pos.x, player.pos.y, player.pos.z + dz)) {
+                    player.pos.z += dz;
                 } else {
+                    player.vel.z = 0;
+                }
+
+                const dy = player.vel.y * delta;
+                if (!checkCollisionAt(player.pos.x, player.pos.y + dy, player.pos.z)) {
+                    player.pos.y += dy;
                     player.isGrounded = false;
+                } else {
+                    if (player.vel.y < 0) {
+                        player.isGrounded = true;
+                    }
+                    player.vel.y = 0;
                 }
 
                 if (keys['Space'] && player.isGrounded) {
@@ -574,21 +710,36 @@
                     player.isGrounded = false;
                 }
 
-                player.pos.x += player.vel.x * delta;
-                player.pos.y += player.vel.y * delta;
-                player.pos.z += player.vel.z * delta;
+                // Viewmodel Bobbing Animation
+                if (isMoving && player.isGrounded) {
+                    walkTimer += delta * 12;
+                    handItemMesh.position.y = -0.42 + Math.sin(walkTimer) * 0.03;
+                    handItemMesh.position.x = 0.48 + Math.cos(walkTimer * 0.5) * 0.03;
+                } else {
+                    handItemMesh.position.y = -0.42;
+                    handItemMesh.position.x = 0.48;
+                }
+
+                // Arm Swing Animation on Click
+                if (isSwinging) {
+                    swingProgress += delta * 15;
+                    handItemMesh.rotation.x = 0.2 + Math.sin(swingProgress) * 0.8;
+                    handItemMesh.rotation.y = -0.4 - Math.sin(swingProgress) * 0.4;
+                    if (swingProgress >= Math.PI) {
+                        swingProgress = 0;
+                        isSwinging = false;
+                        handItemMesh.rotation.set(0.2, -0.4, 0.1);
+                    }
+                }
             }
 
-            // Sync Camera
             camera.position.copy(player.pos);
             camera.rotation.y = player.yaw;
             camera.rotation.x = player.pitch;
 
-            // Update Debug Position
             document.getElementById('debug-pos').innerText = 
                 `XYZ: ${player.pos.x.toFixed(1)} / ${player.pos.y.toFixed(1)} / ${player.pos.z.toFixed(1)}`;
 
-            // Raycast Block Selection
             if (isLocked) {
                 raycaster.setFromCamera({ x: 0, y: 0 }, camera);
                 const meshes = Array.from(worldBlocks.values());
