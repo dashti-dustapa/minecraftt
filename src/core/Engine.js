@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { Time } from './Time.js';
 import { Input } from './Input.js';
 import { Player } from '../player/Player.js';
+import { Interaction } from '../player/Interaction.js';
 import { TextureManager } from '../textures/TextureManager.js';
 import { Chunk } from '../world/Chunk.js';
 
@@ -23,6 +24,7 @@ export class Engine {
         this.camera = null;
         this.renderer = null;
         this.player = null;
+        this.interaction = null;
         this.chunks = [];
 
         this.updateHooks = [];
@@ -31,6 +33,7 @@ export class Engine {
         this.initThree();
         this.initWorld();
         this.initPlayer();
+        this.initInteraction();
         this.initEvents();
     }
 
@@ -63,7 +66,6 @@ export class Engine {
     }
 
     initWorld() {
-        // Spawn 4 initial chunks (2x2 grid)
         for (let cx = 0; cx < 2; cx++) {
             for (let cz = 0; cz < 2; cz++) {
                 const chunk = new Chunk(cx, cz, this.textureManager);
@@ -75,9 +77,13 @@ export class Engine {
 
     initPlayer() {
         this.player = new Player(this.camera, this.input, this.scene);
-        // Start player standing on top of the terrain
         this.player.position.set(8, 14, 8);
         this.addUpdateHook((delta) => this.player.update(delta));
+    }
+
+    initInteraction() {
+        this.interaction = new Interaction(this.camera, this.scene, this.input, this.chunks);
+        this.addUpdateHook(() => this.interaction.update());
     }
 
     initEvents() {
