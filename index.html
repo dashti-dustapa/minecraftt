@@ -16666,3 +16666,273 @@
   }
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 29: Part 1 required.");
+    return;
+  }
+  if (window.__minicraftPart29Loaded) return;
+  window.__minicraftPart29Loaded = true;
+
+  /* ---------- Loading translation ---------- */
+  var LOAD_DICT = {
+    "بارکردنی جیهان...": "Loading world...",
+    "بارکردن...": "Loading... ",
+    "بارکردن": "Loading",
+    "سڕینەوەی جیهان...": "Clearing world...",
+    "دروستکردنی زەوی...": "Building terrain...",
+    "دانانی درەخت و دەریاچە...": "Placing trees and lakes...",
+    "دانانی کانزا و ڕووەک...": "Placing ores and plants...",
+    "دانانی درەخت...": "Placing trees...",
+    "چاوەڕوان بکە": "Please wait"
+  };
+
+  function enifyLoad(str) {
+    if (!str) return str;
+    for (var k in LOAD_DICT) {
+      if (str.indexOf(k) !== -1) str = str.split(k).join(LOAD_DICT[k]);
+    }
+    return str;
+  }
+
+  function fixStatusNow() {
+    var st = document.getElementById("part15-status");
+    if (st) st.textContent = enifyLoad(st.textContent);
+    var ch = document.getElementById("part24-chat");
+    if (ch) ch.textContent = enifyLoad(ch.textContent);
+  }
+  fixStatusNow();
+  setInterval(fixStatusNow, 700);
+
+  /* ---------- Fast Load setting ---------- */
+  var fastLoad = true;
+  try {
+    var fl = localStorage.getItem("minicraft_part29_fastload");
+    if (fl !== null) fastLoad = fl === "1";
+  } catch (e) {}
+
+  var settingsBox = document.getElementById("part15-settings");
+  if (settingsBox) {
+    var row = document.createElement("div");
+    row.style.margin = "13px 0";
+    row.innerHTML =
+      '<label style="display:flex;align-items:center;gap:8px"><input id="part29-fastload" type="checkbox"> Fast Load (smaller new worlds)</label>';
+    var closeB = document.getElementById("part15-settings-close");
+    if (closeB) settingsBox.insertBefore(row, closeB);
+    else settingsBox.appendChild(row);
+    var cb = document.getElementById("part29-fastload");
+    cb.checked = fastLoad;
+    cb.addEventListener("change", function () {
+      fastLoad = this.checked;
+      try { localStorage.setItem("minicraft_part29_fastload", fastLoad ? "1" : "0"); } catch (e) {}
+    });
+  }
+
+  function biomeType29(x, z) {
+    var t = Math.sin(z * 0.008) + Math.sin(x * 0.006);
+    if (t > 0.9) return "desert";
+    if (t < -0.9) return "snow";
+    return "plain";
+  }
+
+  function quickGen() {
+    var half = 24;
+    var x, z, y;
+    for (x = -half; x <= half; x++) {
+      for (z = -half; z <= half; z++) {
+        if (blocks.has(blockKey(x, -3, z))) continue;
+        var bio = biomeType29(x, z);
+        var height = Math.max(0, Math.floor(Math.sin(x * 0.18) * Math.cos(z * 0.18) * 2));
+        for (y = -3; y <= height; y++) {
+          var ty = "stone";
+          if (y === -3) ty = "bedrock";
+          else if (y === height) ty = bio === "desert" ? "sand" : bio === "snow" ? "snow" : "grass";
+          else if (y >= height - 2) ty = bio === "desert" ? "sand" : "dirt";
+          addBlock(x, y, z, ty);
+        }
+      }
+    }
+    for (x = -half; x <= half; x += 1) {
+      for (z = -half; z <= half; z += 1) {
+        var top = null;
+        for (y = 8; y >= -3; y--) {
+          var m = blocks.get(blockKey(x, y, z));
+          var tt = m ? m.userData.type : null;
+          if (tt && tt !== "water" && tt !== "leaves") { top = y; break; }
+        }
+        if (top === null) continue;
+        var bt = blocks.get(blockKey(x, top, z)).userData.type;
+        var bb = biomeType29(x, z);
+        var r = Math.random();
+        if (bt === "stone" && r < 0.05) {
+          var ore = r < 0.03 ? "coal_ore" : r < 0.045 ? "iron_ore" : r < 0.05 ? "gold_ore" : "diamond_ore";
+          removeBlock(x, top, z);
+          addBlock(x, top, z, ore);
+        } else if (bt === "grass" && r < 0.02 && !blocks.has(blockKey(x, top + 1, z))) {
+          addBlock(x, top + 1, z, "wood");
+          for (var yy = 2; yy <= 4; yy++) addBlock(x, top + yy, z, "wood");
+          for (var dy = 0; dy <= 2; dy++) {
+            var rad = dy === 2 ? 1 : 2;
+            for (var dx = -rad; dx <= rad; dx++) for (var dz = -rad; dz <= rad; dz++) {
+              if (dy < 2 && dx === 0 && dz === 0) continue;
+              if (dy === 2 && Math.abs(dx) + Math.abs(dz) > 1) continue;
+              addBlock(x + dx, top + 4 + dy, z + dz, "leaves");
+            }
+          }
+        } else if (bt === "grass" && r < 0.05 && !blocks.has(blockKey(x, top + 1, z))) {
+          addBlock(x, top + 1, z, Math.random() < 0.5 ? "flower_red" : "tall_grass");
+        } else if (bb === "desert" && bt === "sand" && r < 0.012 && !blocks.has(blockKey(x, top + 1, z))) {
+          addBlock(x, top + 1, z, "cactus");
+        } else if (bb === "snow" && r < 0.015 && !blocks.has(blockKey(x, top + 1, z))) {
+          addBlock(x, top + 1, z, "snow");
+        }
+      }
+    }
+  }
+
+  var prevGen29 = generateWorld;
+  generateWorld = function () {
+    if (fastLoad) {
+      quickGen();
+    } else {
+      prevGen29();
+    }
+  };
+
+  /* ---------- Minecraft-style loading overlay ---------- */
+  var overlay = document.createElement("div");
+  overlay.id = "part29-loading";
+  overlay.style.cssText =
+    "position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;" +
+    "align-items:center;justify-content:center;color:#fff;font-family:monospace;" +
+    "background:repeating-linear-gradient(45deg,#6b4a25 0 12px,#7a5429 12px 24px);";
+  overlay.innerHTML =
+    '<div style="font-size:26px;text-shadow:2px 2px 0 #000" id="part29-loadtext">Loading...</div>' +
+    '<div style="width:260px;height:10px;background:#000;border:2px solid #fff;margin-top:14px">' +
+    '<div id="part29-loadbar" style="height:100%;width:0%;background:#7fff00"></div></div>' +
+    '<div id="part29-splash" style="position:absolute;right:18%;top:38%;color:#ffff00;font-weight:bold;transform:rotate(-12deg);text-shadow:1px 1px 0 #000"></div>';
+  document.body.appendChild(overlay);
+
+  var SPLASH = [
+    "Now with chunks!", "100% blocks!", "Very mobile!", "So infinite!",
+    "Wow!", "Much craft!", "Free FPS!", "Touch friendly!", "Biomes!",
+    "Boats!", "Villages!", "Lava!", "Spooky nights!", "Pixel perfect!"
+  ];
+  var splashEl = document.getElementById("part29-splash");
+  function newSplash() {
+    splashEl.textContent = SPLASH[Math.floor(Math.random() * SPLASH.length)];
+  }
+  newSplash();
+  setInterval(newSplash, 8000);
+
+  var loadBar = document.getElementById("part29-loadbar");
+  var loadText = document.getElementById("part29-loadtext");
+  var loadProgress = 0;
+  var overlayHidden = false;
+
+  function hideOverlay() {
+    if (overlayHidden) return;
+    overlayHidden = true;
+    overlay.style.display = "none";
+  }
+
+  /* show overlay while Part15 is loading a save (enter button disabled) */
+  var enterBtn = document.getElementById("part15-btn-enter");
+
+  /* ---------- splash on main menu title ---------- */
+  var menuTitle = document.querySelector(".part15-title");
+  if (menuTitle && !document.getElementById("part29-menu-splash")) {
+    var ms = document.createElement("div");
+    ms.id = "part29-menu-splash";
+    ms.style.cssText =
+      "color:#ffff00;font-weight:bold;transform:rotate(-10deg);margin-top:-6px;" +
+      "text-shadow:1px 1px 0 #000;font-size:14px;";
+    menuTitle.parentNode.insertBefore(ms, menuTitle.nextSibling);
+    function menuSplash() {
+      ms.textContent = SPLASH[Math.floor(Math.random() * SPLASH.length)];
+    }
+    menuSplash();
+    setInterval(menuSplash, 8000);
+  }
+
+  /* ---------- health check / repair loop ---------- */
+  var lastFrame = performance.now();
+  var lowPerfUntil = 0;
+  var checkTimer = 0;
+
+  function getRD29() {
+    try {
+      var r = localStorage.getItem("minicraft_part27_settings");
+      if (r) { var p = JSON.parse(r); if (p.rd) return p.rd; }
+    } catch (e) {}
+    return 2;
+  }
+
+  function healthCheck() {
+    var menu = document.getElementById("part15-menu");
+    var menuOpen = menu && menu.style.display !== "none";
+    var dead = (function () {
+      var d = document.getElementById("part7-death");
+      return d && d.style.display !== "none";
+    })();
+
+    var hotbar = document.getElementById("part5-hotbar");
+    if (hotbar && hotbar.style.display === "none") hotbar.style.display = "";
+
+    var cross = document.getElementById("crosshair");
+    if (cross && !menuOpen && !dead) cross.style.display = "block";
+
+    var hud = document.getElementById("part24-hud");
+    if (hud && hud.style.display === "none" && !menuOpen) hud.style.display = "";
+
+    fixStatusNow();
+  }
+
+  function part29Loop() {
+    requestAnimationFrame(part29Loop);
+
+    var now = performance.now();
+    var ft = now - lastFrame;
+    lastFrame = now;
+    if (ft > 45) lowPerfUntil = now + 2000;
+
+    var loading = enterBtn && enterBtn.disabled;
+
+    if (!overlayHidden) {
+      loadProgress = Math.min(100, loadProgress + 7);
+      loadBar.style.width = loadProgress + "%";
+      if (loadProgress >= 100 && !loading) hideOverlay();
+    } else if (loading) {
+      overlayHidden = false;
+      overlay.style.display = "flex";
+      loadProgress = 0;
+      loadText.textContent = "Loading world...";
+    } else if (!loading && overlay.style.display !== "none" && overlayHidden) {
+      overlay.style.display = "none";
+    }
+
+    if (loading) {
+      loadProgress = Math.min(95, loadProgress + 3);
+      loadBar.style.width = loadProgress + "%";
+    }
+
+    checkTimer -= ft / 1000;
+    if (checkTimer <= 0) {
+      checkTimer = 2;
+      if (now > lowPerfUntil) healthCheck();
+    }
+  }
+
+  setTimeout(function () {
+    part29Loop();
+  }, 30);
+
+  var chat29 = document.getElementById("part24-chat");
+  if (chat29) {
+    chat29.innerText = "Part 29: Loading fixed + Fast Load + repairs";
+    chat29.style.opacity = "1";
+    setTimeout(function () { chat29.style.opacity = "0"; }, 5000);
+  }
+})();
+</script>
