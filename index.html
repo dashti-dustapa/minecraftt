@@ -1,1 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Minecraft JS - Web Voxel Engine</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
 
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            color: #fff;
+        }
+
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 18px;
+            height: 18px;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            mix-blend-mode: difference;
+        }
+
+        #crosshair::before {
+            top: 8px;
+            left: 0;
+            width: 18px;
+            height: 2px;
+        }
+
+        #crosshair::after {
+            top: 0;
+            left: 8px;
+            width: 2px;
+            height: 18px;
+        }
+
+        /* F3 Debug Screen */
+        #debug-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 20;
+            font-size: 13px;
+            line-height: 1.5;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px 12px;
+            border-radius: 4px;
+            pointer-events: none;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        /* Hotbar HUD */
+        #hotbar {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            display: flex;
+            background: rgba(20, 20, 20, 0.8);
+            border: 2px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 3px;
+            gap: 4px;
+        }
+
+        .hotbar-slot {
+            position: relative;
+            width: 46px;
+            height: 46px;
+            background-color: #8b8b8b;
+            border: 3px solid #373737;
+            box-shadow: inset -2px -2px #555, inset 2px 2px #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px #000;
+        }
+
+        .hotbar-slot.active {
+            border-color: #ffffff;
+            box-shadow: 0 0 0 2px #000, inset -2px -2px #fff, inset 2px 2px #fff;
+            transform: scale(1.06);
+        }
+
+        .slot-key {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 10px;
+            color: #ddd;
+        }
+
+        /* Pause Screen */
+        #pause-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            backdrop-filter: blur(3px);
+        }
+
+        .menu-box {
+            text-align: center;
+            max-width: 440px;
+            width: 90%;
+        }
+
+        .game-title {
+            font-size: 44px;
+            letter-spacing: 4px;
+            color: #eee;
+            text-shadow: 3px 3px #222;
+            margin-bottom: 4px;
+        }
+
+        .game-subtitle {
+            font-size: 15px;
+            color: #ffff55;
+            margin-bottom: 25px;
+            text-shadow: 2px 2px #333;
+        }
+
+        .mc-btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 17px;
+            font-family: inherit;
+            font-weight: bold;
+            color: #fff;
+            background: #727272;
+            border: 2px solid #000;
+            box-shadow: inset -2px -2px #373737, inset 2px 2px #dbdbdb;
+            cursor: pointer;
+            text-shadow: 2px 2px #222;
+            margin-bottom: 20px;
+        }
+
+        .mc-btn:hover {
+            background: #8c8c8c;
+        }
+
+        .instructions {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 12px;
+            border: 1px solid #444;
+            text-align: left;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #ccc;
+        }
+
+        .instructions strong {
+            color: #55ff55;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+    <div id="crosshair"></div>
+
+    <div id="debug-overlay">
+        <p>Minecraft JS Engine</p>
+        <p id="debug-fps">FPS: 60</p>
+        <p id="debug-pos">XYZ: 0 / 0 / 0</p>
+        <p id="debug-block">Selected: Grass</p>
+    </div>
+
+    <div id="hotbar">
+        <div class="hotbar-slot active" data-slot="0"><span class="slot-key">1</span>Grass</div>
+        <div class="hotbar-slot" data-slot="1"><span class="slot-key">2</span>Dirt</div>
+        <div class="hotbar-slot" data-slot="2"><span class="slot-key">3</span>Stone</div>
+        <div class="hotbar-slot" data-slot="3"><span class="slot-key">4</span>Cobble</div>
+        <div class="hotbar-slot" data-slot="4"><span class="slot-key">5</span>Wood</div>
+    </div>
+
+    <div id="pause-screen">
+        <div class="menu-box">
+            <h1 class="game-title">MINECRAFT</h1>
+            <p class="game-subtitle">Pure WebGL Edition</p>
+            <button id="btn-play" class="mc-btn">Click to Play</button>
+            <div class="instructions">
+                <p><strong>WASD</strong> : Move / ڕۆیشتن</p>
+                <p><strong>SPACE</strong> : Jump / بازدان</p>
+                <p><strong>SHIFT</strong> : Sprint / ڕاکردن</p>
+                <p><strong>LEFT CLICK</strong> : Break Block / شکاندنی بلۆک</p>
+                <p><strong>RIGHT CLICK</strong> : Place Block / دانانی بلۆک</p>
+                <p><strong>1 - 5 / SCROLL</strong> : Select Item / هەڵبژاردنی بلۆک</p>
+                <p><strong>ESC</strong> : Pause / وەستان</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- 1. Procedural 16x16 Pixel Texture Generator ---
+        function createPixelTexture(drawFn) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16;
+            canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = false;
+            drawFn(ctx);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.NearestFilter;
+            return texture;
+        }
+
+        const textures = {
+            dirt: createPixelTexture(ctx => {
+                ctx.fillStyle = '#866043';
+                ctx.fillRect(0, 0, 16, 16);
+                for (let i = 0; i < 40; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#68482f' : '#9b7454';
+                    ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                }
+            }),
+            grass_top: createPixelTexture(ctx => {
+                ctx.fillStyle = '#5b8c32';
+                ctx.fillRect(0, 0, 16, 16);
+                for (let i = 0; i < 40; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#4c7828' : '#6ba53b';
+                    ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                }
+            }),
+            grass_side: createPixelTexture(ctx => {
+                ctx.fillStyle = '#866043';
+                ctx.fillRect(0, 0, 16, 16);
+                for (let i = 0; i < 35; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#68482f' : '#9b7454';
+                    ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                }
+                ctx.fillStyle = '#5b8c32';
+                ctx.fillRect(0, 0, 16, 4);
+                for (let x = 0; x < 16; x++) {
+                    ctx.fillRect(x, 4, 1, Math.floor(Math.random() * 3));
+                }
+            }),
+            stone: createPixelTexture(ctx => {
+                ctx.fillStyle = '#787878';
+                ctx.fillRect(0, 0, 16, 16);
+                for (let i = 0; i < 50; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#5e5e5e' : '#8c8c8c';
+                    ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+                }
+            }),
+            cobblestone: createPixelTexture(ctx => {
+                ctx.fillStyle = '#6c6c6c';
+                ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#3a3a3a';
+                for (let y = 0; y < 16; y += 4) ctx.fillRect(0, y, 16, 1);
+                for (let i = 0; i < 35; i++) {
+                    ctx.fillStyle = Math.random() > 0.5 ? '#4f4f4f' : '#8a8a8a';
+                    ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 2, 1);
+                }
+            }),
+            plank: createPixelTexture(ctx => {
+                ctx.fillStyle = '#9c7849';
+                ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#6b4f2c';
+                ctx.fillRect(0, 3, 16, 1);
+                ctx.fillRect(0, 7, 16, 1);
+                ctx.fillRect(0, 11, 16, 1);
+            })
+        };
+
+        const materials = {
+            grass: [
+                new THREE.MeshLambertMaterial({ map: textures.grass_side }),
+                new THREE.MeshLambertMaterial({ map: textures.grass_side }),
+                new THREE.MeshLambertMaterial({ map: textures.grass_top }),
+                new THREE.MeshLambertMaterial({ map: textures.dirt }),
+                new THREE.MeshLambertMaterial({ map: textures.grass_side }),
+                new THREE.MeshLambertMaterial({ map: textures.grass_side })
+            ],
+            dirt: new THREE.MeshLambertMaterial({ map: textures.dirt }),
+            stone: new THREE.MeshLambertMaterial({ map: textures.stone }),
+            cobble: new THREE.MeshLambertMaterial({ map: textures.cobblestone }),
+            plank: new THREE.MeshLambertMaterial({ map: textures.plank })
+        };
+
+        const BLOCK_TYPES = [
+            { name: 'Grass', mat: materials.grass },
+            { name: 'Dirt', mat: materials.dirt },
+            { name: 'Stone', mat: materials.stone },
+            { name: 'Cobblestone', mat: materials.cobble },
+            { name: 'Wood Plank', mat: materials.plank }
+        ];
+
+        let selectedBlockIndex = 0;
+
+        // --- 2. Three.js Scene Setup ---
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x78a7ff);
+        scene.fog = new THREE.FogExp2(0x78a7ff, 0.018);
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.rotation.order = 'YXZ';
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.75);
+        sunLight.position.set(40, 80, 40);
+        scene.add(sunLight);
+
+        // --- 3. Voxel World Generation ---
+        const WORLD_SIZE = 24;
+        const WORLD_HEIGHT = 16;
+        const worldBlocks = new Map();
+        const blockGeometry = new THREE.BoxGeometry(1, 1, 1);
+
+        function posKey(x, y, z) {
+            return `${x},${y},${z}`;
+        }
+
+        function createBlock(x, y, z, typeIndex) {
+            const blockDef = BLOCK_TYPES[typeIndex];
+            const mesh = new THREE.Mesh(blockGeometry, blockDef.mat);
+            mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+            mesh.userData = { x, y, z, typeIndex };
+            scene.add(mesh);
+            worldBlocks.set(posKey(x, y, z), mesh);
+            return mesh;
+        }
+
+        function removeBlock(x, y, z) {
+            const key = posKey(x, y, z);
+            const mesh = worldBlocks.get(key);
+            if (mesh) {
+                scene.remove(mesh);
+                worldBlocks.delete(key);
+            }
+        }
+
+        // Generate Rolling Hills
+        for (let x = -WORLD_SIZE / 2; x < WORLD_SIZE / 2; x++) {
+            for (let z = -WORLD_SIZE / 2; z < WORLD_SIZE / 2; z++) {
+                const height = Math.floor(5 + Math.sin(x * 0.3) * 2.5 + Math.cos(z * 0.3) * 2.5);
+                for (let y = 0; y <= height; y++) {
+                    if (y === height) {
+                        createBlock(x, y, z, 0); // Grass
+                    } else if (y > height - 3) {
+                        createBlock(x, y, z, 1); // Dirt
+                    } else {
+                        createBlock(x, y, z, 2); // Stone
+                    }
+                }
+            }
+        }
+
+        // --- 4. Player Controller & Physics ---
+        const player = {
+            pos: new THREE.Vector3(0, 12, 0),
+            vel: new THREE.Vector3(),
+            yaw: 0,
+            pitch: 0,
+            height: 1.62,
+            isGrounded: false
+        };
+
+        const keys = {};
+        let isLocked = false;
+
+        const pauseScreen = document.getElementById('pause-screen');
+        const playBtn = document.getElementById('btn-play');
+
+        playBtn.addEventListener('click', () => {
+            canvas.requestPointerLock();
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            isLocked = document.pointerLockElement === canvas;
+            if (isLocked) {
+                pauseScreen.classList.add('hidden');
+            } else {
+                pauseScreen.classList.remove('hidden');
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isLocked) return;
+            player.yaw -= e.movementX * 0.0022;
+            player.pitch -= e.movementY * 0.0022;
+            player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, player.pitch));
+        });
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code.startsWith('Digit') && e.code !== 'Digit0') {
+                const num = parseInt(e.code.replace('Digit', '')) - 1;
+                if (num >= 0 && num < BLOCK_TYPES.length) {
+                    setSlot(num);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (!isLocked) return;
+            if (e.deltaY > 0) {
+                setSlot((selectedBlockIndex + 1) % BLOCK_TYPES.length);
+            } else {
+                setSlot((selectedBlockIndex - 1 + BLOCK_TYPES.length) % BLOCK_TYPES.length);
+            }
+        });
+
+        function setSlot(index) {
+            selectedBlockIndex = index;
+            const slots = document.querySelectorAll('.hotbar-slot');
+            slots.forEach((s, idx) => {
+                if (idx === index) s.classList.add('active');
+                else s.classList.remove('active');
+            });
+            document.getElementById('debug-block').innerText = `Selected: ${BLOCK_TYPES[index].name}`;
+        }
+
+        // --- 5. Raycaster & Block Interaction ---
+        const raycaster = new THREE.Raycaster();
+        raycaster.far = 6.0;
+
+        const outlineGeom = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.005, 1.005, 1.005));
+        const outlineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+        const selectionBox = new THREE.LineSegments(outlineGeom, outlineMat);
+        selectionBox.visible = false;
+        scene.add(selectionBox);
+
+        let targetHit = null;
+
+        window.addEventListener('mousedown', (e) => {
+            if (!isLocked || !targetHit) return;
+
+            const mesh = targetHit.object;
+            const data = mesh.userData;
+
+            if (e.button === 0) {
+                // Left Click: Destroy Block
+                removeBlock(data.x, data.y, data.z);
+            } else if (e.button === 2) {
+                // Right Click: Place Block
+                const normal = targetHit.face.normal;
+                const px = data.x + Math.round(normal.x);
+                const py = data.y + Math.round(normal.y);
+                const pz = data.z + Math.round(normal.z);
+
+                // Prevent placing block inside player's body
+                const pDist = player.pos.distanceTo(new THREE.Vector3(px + 0.5, py + 0.5, pz + 0.5));
+                if (pDist > 1.1) {
+                    createBlock(px, py, pz, selectedBlockIndex);
+                }
+            }
+        });
+
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        // --- 6. Main Loop ---
+        let prevTime = performance.now();
+        let frameCount = 0;
+        let fpsTimer = 0;
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+
+            const delta = Math.min((time - prevTime) / 1000, 0.1);
+            prevTime = time;
+
+            // FPS Counter
+            frameCount++;
+            fpsTimer += delta;
+            if (fpsTimer >= 1.0) {
+                document.getElementById('debug-fps').innerText = `FPS: ${frameCount}`;
+                frameCount = 0;
+                fpsTimer = 0;
+            }
+
+            if (isLocked) {
+                // WASD Direction vectors
+                const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+                const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+                const moveDir = new THREE.Vector3();
+
+                if (keys['KeyW']) moveDir.add(forward);
+                if (keys['KeyS']) moveDir.sub(forward);
+                if (keys['KeyD']) moveDir.add(right);
+                if (keys['KeyA']) moveDir.sub(right);
+
+                if (moveDir.lengthSq() > 0) moveDir.normalize();
+
+                const speed = keys['ShiftLeft'] ? 7.5 : 4.8;
+                player.vel.x = moveDir.x * speed;
+                player.vel.z = moveDir.z * speed;
+
+                // Gravity & Jump
+                player.vel.y -= 26.0 * delta;
+
+                // Simple Ground Collision
+                const checkX = Math.floor(player.pos.x);
+                const checkZ = Math.floor(player.pos.z);
+                let highestGround = -1;
+
+                for (let y = WORLD_HEIGHT; y >= 0; y--) {
+                    if (worldBlocks.has(posKey(checkX, y, checkZ))) {
+                        highestGround = y + 1;
+                        break;
+                    }
+                }
+
+                if (player.pos.y + player.vel.y * delta <= highestGround + player.height) {
+                    player.pos.y = highestGround + player.height;
+                    player.vel.y = 0;
+                    player.isGrounded = true;
+                } else {
+                    player.isGrounded = false;
+                }
+
+                if (keys['Space'] && player.isGrounded) {
+                    player.vel.y = 8.5;
+                    player.isGrounded = false;
+                }
+
+                player.pos.x += player.vel.x * delta;
+                player.pos.y += player.vel.y * delta;
+                player.pos.z += player.vel.z * delta;
+            }
+
+            // Sync Camera
+            camera.position.copy(player.pos);
+            camera.rotation.y = player.yaw;
+            camera.rotation.x = player.pitch;
+
+            // Update Debug Position
+            document.getElementById('debug-pos').innerText = 
+                `XYZ: ${player.pos.x.toFixed(1)} / ${player.pos.y.toFixed(1)} / ${player.pos.z.toFixed(1)}`;
+
+            // Raycast Block Selection
+            if (isLocked) {
+                raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+                const meshes = Array.from(worldBlocks.values());
+                const hits = raycaster.intersectObjects(meshes, false);
+
+                if (hits.length > 0) {
+                    targetHit = hits[0];
+                    selectionBox.position.copy(targetHit.object.position);
+                    selectionBox.visible = true;
+                } else {
+                    targetHit = null;
+                    selectionBox.visible = false;
+                }
+            } else {
+                selectionBox.visible = false;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
