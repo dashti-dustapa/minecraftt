@@ -13530,3 +13530,353 @@
   );
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 23: سەرەتا دەبێت Part 1 هەبێت.");
+    return;
+  }
+
+  if (window.__minicraftPart23Loaded) {
+    return;
+  }
+
+  window.__minicraftPart23Loaded = true;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #part23-slot-nav {
+      position: fixed;
+      bottom: calc(72px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      gap: 10px;
+      z-index: 101;
+    }
+
+    #part23-slot-label {
+      position: fixed;
+      bottom: calc(108px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 99;
+      display: none;
+      color: white;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      direction: rtl;
+      pointer-events: none;
+      text-shadow: 0 0 3px black;
+    }
+
+    #part23-utils {
+      position: fixed;
+      top: calc(10px + env(safe-area-inset-top));
+      left: 10px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 96;
+    }
+
+    .part23-mini-btn,
+    .part23-util-btn {
+      border: 2px solid rgba(255, 255, 255, 0.45);
+      background: rgba(0, 0, 0, 0.42);
+      color: white;
+      border-radius: 12px;
+      touch-action: none;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+
+    .part23-mini-btn {
+      width: 52px;
+      height: 42px;
+      font-size: 20px;
+    }
+
+    .part23-util-btn {
+      width: 46px;
+      height: 46px;
+      font-size: 22px;
+    }
+
+    .part23-mini-btn:active,
+    .part23-util-btn:active {
+      background: rgba(127, 140, 255, 0.55);
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  let part23MessageTimer = null;
+
+  function showPart23Message(text) {
+    let message = document.getElementById("mc-message");
+
+    if (!message) {
+      message = document.createElement("div");
+      message.id = "mc-message";
+      document.body.appendChild(message);
+    }
+
+    message.innerText = text;
+    message.style.opacity = "1";
+
+    clearTimeout(part23MessageTimer);
+
+    part23MessageTimer = setTimeout(function () {
+      message.style.opacity = "0";
+    }, 2200);
+  }
+
+  const part23Touch =
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0) ||
+    window.innerWidth < 900;
+
+  function vibrate(milliseconds) {
+    try {
+      if (navigator.vibrate) {
+        navigator.vibrate(milliseconds);
+      }
+    } catch (error) {}
+  }
+
+  function simulateKey(code) {
+    try {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: code,
+          bubbles: true,
+          cancelable: true
+        })
+      );
+
+      setTimeout(function () {
+        document.dispatchEvent(
+          new KeyboardEvent("keyup", {
+            code: code,
+            bubbles: true,
+            cancelable: true
+          })
+        );
+      }, 60);
+    } catch (error) {}
+  }
+
+  function isElementVisible(id) {
+    const el = document.getElementById(id);
+
+    if (!el) {
+      return false;
+    }
+
+    return window.getComputedStyle(el).display !== "none";
+  }
+
+  function isAnyOverlayOpenPart23() {
+    return (
+      isElementVisible("part15-menu") ||
+      isElementVisible("part16-inventory") ||
+      isElementVisible("part17-worlds") ||
+      isElementVisible("part18-panel") ||
+      isElementVisible("part20-settings") ||
+      isElementVisible("part7-death")
+    );
+  }
+
+  const slotNav = document.createElement("div");
+  slotNav.id = "part23-slot-nav";
+
+  slotNav.innerHTML = `
+    <button id="part23-prev" class="part23-mini-btn">◀</button>
+    <button id="part23-next" class="part23-mini-btn">▶</button>
+  `;
+
+  document.body.appendChild(slotNav);
+
+  const slotLabel = document.createElement("div");
+  slotLabel.id = "part23-slot-label";
+  document.body.appendChild(slotLabel);
+
+  const utils = document.createElement("div");
+  utils.id = "part23-utils";
+
+  utils.innerHTML = `
+    <button id="part23-map" class="part23-util-btn">🗺</button>
+    <button id="part23-time" class="part23-util-btn">⏱</button>
+    <button id="part23-village" class="part23-util-btn">🏰</button>
+  `;
+
+  document.body.appendChild(utils);
+
+  const prevBtn = document.getElementById("part23-prev");
+  const nextBtn = document.getElementById("part23-next");
+  const mapBtn = document.getElementById("part23-map");
+  const timeBtn = document.getElementById("part23-time");
+  const villageBtn = document.getElementById("part23-village");
+
+  const blockNamesPart23 = {
+    grass: "گیا",
+    dirt: "خاک",
+    stone: "بەرد",
+    cobble: "کۆبڵ",
+    wood: "دار",
+    plank: "تەختە",
+    leaves: "گەڵا",
+    sand: "خۆڵ",
+    glass: "شووشە",
+    water: "ئاو",
+    lava: "لابا",
+    obsidian: "ئۆبسیدیەن",
+    glowstone: "گلۆستۆن",
+    sponge: "سپۆنج",
+    hay_bale: "کا",
+    coal_ore: "خەڵووز",
+    iron_ore: "ئاسن",
+    gold_ore: "زێڕ",
+    diamond_ore: "ئەڵماس",
+    bedrock: "بێدڕۆک",
+    ladder: "نەردەبان",
+    flower_red: "گوڵی سوور",
+    flower_yellow: "گوڵی زەرد",
+    tall_grass: "گیای درێژ",
+    crafting_table: "مێزی دروستکردن",
+    furnace: "فڕن",
+    torch: "مەشخەڵ"
+  };
+
+  function getSelectedSlotIndex() {
+    const hotbar = document.getElementById("part5-hotbar");
+
+    if (!hotbar) {
+      return 0;
+    }
+
+    const slots = hotbar.querySelectorAll(".part5-slot");
+
+    for (let i = 0; i < slots.length; i++) {
+      if (slots[i].classList.contains("selected")) {
+        return i;
+      }
+    }
+
+    return 0;
+  }
+
+  function selectSlotByIndex(index) {
+    const hotbar = document.getElementById("part5-hotbar");
+
+    if (!hotbar) {
+      return;
+    }
+
+    const count = hotbar.children.length || 9;
+
+    if (index < 0) {
+      index = count - 1;
+    }
+
+    if (index >= count) {
+      index = 0;
+    }
+
+    simulateKey("Digit" + (index + 1));
+    vibrate(12);
+  }
+
+  prevBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart23()) {
+      return;
+    }
+
+    const current = getSelectedSlotIndex();
+    selectSlotByIndex(current - 1);
+  });
+
+  nextBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart23()) {
+      return;
+    }
+
+    const current = getSelectedSlotIndex();
+    selectSlotByIndex(current + 1);
+  });
+
+  mapBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart23()) {
+      return;
+    }
+
+    vibrate(15);
+    simulateKey("KeyH");
+  });
+
+  timeBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart23()) {
+      return;
+    }
+
+    vibrate(15);
+    simulateKey("KeyT");
+  });
+
+  villageBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart23()) {
+      return;
+    }
+
+    vibrate(20);
+    simulateKey("KeyV");
+  });
+
+  const part23Clock = new THREE.Clock();
+
+  function part23Loop() {
+    requestAnimationFrame(part23Loop);
+
+    part23Clock.getDelta();
+
+    const overlaysOpen = isAnyOverlayOpenPart23();
+    const showPart23 = part23Touch && !overlaysOpen;
+
+    slotNav.style.display = showPart23 ? "flex" : "none";
+    slotLabel.style.display = showPart23 ? "block" : "none";
+    utils.style.display = showPart23 ? "flex" : "none";
+
+    if (showPart23) {
+      const current =
+        typeof currentBlock !== "undefined" && currentBlock
+          ? currentBlock
+          : "";
+
+      const name = blockNamesPart23[current] || current;
+
+      slotLabel.innerText = name ? "بلۆک: " + name : "";
+    }
+  }
+
+  part23Loop();
+
+  showPart23Message(
+    "Part 23: دوگمەی هۆتبار و یاریدەدەرەکان زیادکران"
+  );
+})();
+</script>
