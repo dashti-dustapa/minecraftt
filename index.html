@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Minecraft Web - Full Survival Engine</title>
+    <title>Minecraft Web - Inventory & Crafting Engine</title>
     <style>
         * {
             box-sizing: border-box;
@@ -64,7 +64,6 @@
             height: 18px;
         }
 
-        /* Damage Vignette */
         #damage-flash {
             position: absolute;
             top: 0;
@@ -78,7 +77,6 @@
             transition: opacity 0.15s ease-out;
         }
 
-        /* Underwater Overlay */
         #underwater-tint {
             position: absolute;
             top: 0;
@@ -105,7 +103,7 @@
             text-shadow: 1px 1px 0 #000;
         }
 
-        /* HUD: Health, Hunger, Oxygen */
+        /* Survival HUD */
         #hud {
             position: absolute;
             bottom: 12px;
@@ -143,7 +141,6 @@
             margin-bottom: 2px;
         }
 
-        /* 9-Slot Hotbar */
         #hotbar {
             display: flex;
             background: rgba(20, 20, 20, 0.85);
@@ -184,7 +181,100 @@
             color: #ddd;
         }
 
-        /* Pause Menu */
+        /* Inventory & Crafting Screen */
+        #inventory-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.65);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 45;
+            backdrop-filter: blur(2px);
+        }
+
+        .inv-window {
+            background-color: #c6c6c6;
+            border: 4px solid #fff;
+            box-shadow: inset -4px -4px #555, 0 0 15px #000;
+            padding: 16px;
+            color: #3f3f3f;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            font-weight: bold;
+        }
+
+        .inv-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .crafting-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #8b8b8b;
+            padding: 10px;
+            border: 2px solid #373737;
+            box-shadow: inset -2px -2px #fff, inset 2px 2px #555;
+        }
+
+        .grid-2x2 {
+            display: grid;
+            grid-template-columns: repeat(2, 40px);
+            grid-template-rows: repeat(2, 40px);
+            gap: 3px;
+        }
+
+        .inv-slot {
+            width: 40px;
+            height: 40px;
+            background-color: #8b8b8b;
+            border: 2px solid #373737;
+            box-shadow: inset -2px -2px #fff, inset 2px 2px #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            color: #fff;
+            cursor: pointer;
+            text-shadow: 1px 1px #000;
+            text-align: center;
+        }
+
+        .inv-slot:hover {
+            background-color: #a4a4a4;
+        }
+
+        .inv-slot.output {
+            width: 48px;
+            height: 48px;
+            border-color: #222;
+            background-color: #9e9e9e;
+        }
+
+        .inv-grid-main {
+            display: grid;
+            grid-template-columns: repeat(9, 40px);
+            grid-template-rows: repeat(3, 40px);
+            gap: 3px;
+        }
+
+        .inv-grid-hotbar {
+            display: grid;
+            grid-template-columns: repeat(9, 40px);
+            gap: 3px;
+            margin-top: 6px;
+            border-top: 2px solid #777;
+            padding-top: 8px;
+        }
+
+        /* Pause Screen */
         #pause-screen {
             position: absolute;
             top: 0;
@@ -272,6 +362,7 @@
         <p id="debug-block">Selected: Grass Block</p>
     </div>
 
+    <!-- HUD -->
     <div id="hud">
         <div id="bubble-bar"></div>
         <div id="status-bars">
@@ -291,6 +382,32 @@
         </div>
     </div>
 
+    <!-- Inventory & Crafting GUI -->
+    <div id="inventory-screen" class="hidden">
+        <div class="inv-window">
+            <div class="inv-top-row">
+                <span>Crafting</span>
+                <div class="crafting-area">
+                    <div class="grid-2x2">
+                        <div class="inv-slot craft-in" data-cslot="0"></div>
+                        <div class="inv-slot craft-in" data-cslot="1"></div>
+                        <div class="inv-slot craft-in" data-cslot="2"></div>
+                        <div class="inv-slot craft-in" data-cslot="3"></div>
+                    </div>
+                    <span>➜</span>
+                    <div class="inv-slot output" id="craft-out"></div>
+                </div>
+            </div>
+
+            <div>
+                <p style="font-size: 11px; margin-bottom: 4px;">Inventory</p>
+                <div class="inv-grid-main" id="inv-main-grid"></div>
+                <div class="inv-grid-hotbar" id="inv-hotbar-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause / Start Menu -->
     <div id="pause-screen">
         <div class="menu-box">
             <h1 class="game-title">MINECRAFT</h1>
@@ -300,6 +417,7 @@
                 <p><strong>WASD</strong> : Move / Swim</p>
                 <p><strong>SPACE</strong> : Jump / Swim Up</p>
                 <p><strong>SHIFT</strong> : Sprint</p>
+                <p><strong>E</strong> : Open / Close Inventory & Crafting</p>
                 <p><strong>LEFT CLICK</strong> : Destroy Block</p>
                 <p><strong>RIGHT CLICK</strong> : Place Block / Torch</p>
                 <p><strong>1 - 9 / SCROLL</strong> : Select Hotbar Item</p>
@@ -382,6 +500,20 @@
                 ctx.fillRect(0, 7, 16, 1);
                 ctx.fillRect(0, 11, 16, 1);
             }),
+            log_side: createPixelTexture(ctx => {
+                ctx.fillStyle = '#6d5332';
+                ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#48361f';
+                for (let x = 0; x < 16; x += 4) ctx.fillRect(x, 0, 2, 16);
+            }),
+            log_top: createPixelTexture(ctx => {
+                ctx.fillStyle = '#8f6f47';
+                ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#6d5332';
+                ctx.fillRect(3, 3, 10, 10);
+                ctx.fillStyle = '#48361f';
+                ctx.fillRect(6, 6, 4, 4);
+            }),
             torch: createPixelTexture(ctx => {
                 ctx.fillStyle = '#6b4f2c';
                 ctx.fillRect(6, 4, 4, 12);
@@ -418,6 +550,15 @@
                 for (let i = 0; i < 16; i++) {
                     ctx.fillRect(Math.floor(Math.random() * 14) + 1, Math.floor(Math.random() * 14) + 1, 2, 2);
                 }
+            }),
+            crafting_table: createPixelTexture(ctx => {
+                ctx.fillStyle = '#9c7849';
+                ctx.fillRect(0, 0, 16, 16);
+                ctx.fillStyle = '#5c4028';
+                ctx.strokeRect(1, 1, 14, 14);
+                ctx.fillStyle = '#3a2412';
+                ctx.fillRect(4, 4, 3, 8);
+                ctx.fillRect(9, 4, 3, 8);
             })
         };
 
@@ -434,25 +575,41 @@
             stone: new THREE.MeshLambertMaterial({ map: textures.stone }),
             cobble: new THREE.MeshLambertMaterial({ map: textures.cobble }),
             plank: new THREE.MeshLambertMaterial({ map: textures.plank }),
+            log: [
+                new THREE.MeshLambertMaterial({ map: textures.log_side }),
+                new THREE.MeshLambertMaterial({ map: textures.log_side }),
+                new THREE.MeshLambertMaterial({ map: textures.log_top }),
+                new THREE.MeshLambertMaterial({ map: textures.log_top }),
+                new THREE.MeshLambertMaterial({ map: textures.log_side }),
+                new THREE.MeshLambertMaterial({ map: textures.log_side })
+            ],
             torch: new THREE.MeshBasicMaterial({ map: textures.torch, transparent: true }),
             glass: new THREE.MeshLambertMaterial({ map: textures.glass, transparent: true, opacity: 0.45 }),
             water: new THREE.MeshLambertMaterial({ map: textures.water, transparent: true, opacity: 0.65 }),
-            diamond: new THREE.MeshLambertMaterial({ map: textures.diamond })
+            diamond: new THREE.MeshLambertMaterial({ map: textures.diamond }),
+            crafting_table: new THREE.MeshLambertMaterial({ map: textures.crafting_table })
         };
 
         const BLOCK_TYPES = [
-            { name: 'Grass Block', mat: materials.grass, solid: true, isTorch: false, isWater: false },
-            { name: 'Dirt', mat: materials.dirt, solid: true, isTorch: false, isWater: false },
-            { name: 'Stone', mat: materials.stone, solid: true, isTorch: false, isWater: false },
-            { name: 'Cobblestone', mat: materials.cobble, solid: true, isTorch: false, isWater: false },
-            { name: 'Oak Planks', mat: materials.plank, solid: true, isTorch: false, isWater: false },
-            { name: 'Torch', mat: materials.torch, solid: false, isTorch: true, isWater: false },
-            { name: 'Glass', mat: materials.glass, solid: true, isTorch: false, isWater: false },
-            { name: 'Water', mat: materials.water, solid: false, isTorch: false, isWater: true },
-            { name: 'Diamond Ore', mat: materials.diamond, solid: true, isTorch: false, isWater: false }
+            { id: 0, name: 'Grass Block', mat: materials.grass, solid: true, isTorch: false, isWater: false },
+            { id: 1, name: 'Dirt', mat: materials.dirt, solid: true, isTorch: false, isWater: false },
+            { id: 2, name: 'Stone', mat: materials.stone, solid: true, isTorch: false, isWater: false },
+            { id: 3, name: 'Cobblestone', mat: materials.cobble, solid: true, isTorch: false, isWater: false },
+            { id: 4, name: 'Oak Planks', mat: materials.plank, solid: true, isTorch: false, isWater: false },
+            { id: 5, name: 'Torch', mat: materials.torch, solid: false, isTorch: true, isWater: false },
+            { id: 6, name: 'Glass', mat: materials.glass, solid: true, isTorch: false, isWater: false },
+            { id: 7, name: 'Water', mat: materials.water, solid: false, isTorch: false, isWater: true },
+            { id: 8, name: 'Diamond Ore', mat: materials.diamond, solid: true, isTorch: false, isWater: false },
+            { id: 9, name: 'Oak Log', mat: materials.log, solid: true, isTorch: false, isWater: false },
+            { id: 10, name: 'Crafting Table', mat: materials.crafting_table, solid: true, isTorch: false, isWater: false }
         ];
 
-        let selectedBlockIndex = 0;
+        let selectedHotbarIndex = 0;
+        const hotbarItems = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+        const mainInventory = new Array(27).fill(null);
+        mainInventory[0] = 9; // starter Oak Log
+        mainInventory[1] = 9;
+        mainInventory[2] = 4;
 
         // --- 2. Three.js Scene Setup ---
         const canvas = document.getElementById('game-canvas');
@@ -561,7 +718,7 @@
             }
         }
 
-        // Generate Terrain & Water Bodies
+        // Build Terrain
         for (let x = -WORLD_SIZE / 2; x < WORLD_SIZE / 2; x++) {
             for (let z = -WORLD_SIZE / 2; z < WORLD_SIZE / 2; z++) {
                 const height = Math.floor(5 + Math.sin(x * 0.22) * 3 + Math.cos(z * 0.22) * 3);
@@ -572,20 +729,16 @@
                         } else if (y > height - 3) {
                             createBlock(x, y, z, 1); // Dirt
                         } else {
-                            if (Math.random() < 0.04) {
-                                createBlock(x, y, z, 8); // Diamond
-                            } else {
-                                createBlock(x, y, z, 2); // Stone
-                            }
+                            createBlock(x, y, z, 2); // Stone
                         }
                     } else if (y <= SEA_LEVEL) {
-                        createBlock(x, y, z, 7); // Water body
+                        createBlock(x, y, z, 7); // Water
                     }
                 }
             }
         }
 
-        // --- 5. Player Stats & Survival Loop ---
+        // --- 5. Player Physics & Survival ---
         const player = {
             pos: new THREE.Vector3(0, 16, 0),
             vel: new THREE.Vector3(),
@@ -605,9 +758,9 @@
 
         const keys = {};
         let isLocked = false;
+        let isInventoryOpen = false;
         let walkTimer = 0;
 
-        // UI Hearts & Food initial build
         function renderHUD() {
             const hBar = document.getElementById('health-bar');
             hBar.innerHTML = '';
@@ -650,7 +803,6 @@
             setTimeout(() => { flash.style.opacity = '0'; }, 200);
 
             if (player.health === 0) {
-                // Respawn
                 player.health = 20;
                 player.hunger = 20;
                 player.oxygen = 20;
@@ -662,7 +814,7 @@
 
         renderHUD();
 
-        // --- 6. Controls & Viewmodel ---
+        // --- 6. First-Person Hand Viewmodel ---
         const handContainer = new THREE.Group();
         camera.add(handContainer);
         scene.add(camera);
@@ -675,16 +827,160 @@
         let swingProgress = 0;
         let isSwinging = false;
 
-        function setSlot(index) {
-            selectedBlockIndex = index;
-            document.querySelectorAll('.hotbar-slot').forEach((s, idx) => {
-                if (idx === index) s.classList.add('active');
-                else s.classList.remove('active');
-            });
-            document.getElementById('debug-block').innerText = `Selected: ${BLOCK_TYPES[index].name}`;
-            handItemMesh.material = BLOCK_TYPES[index].mat;
+        function updateHeldBlock() {
+            const blockId = hotbarItems[selectedHotbarIndex];
+            if (blockId !== null && BLOCK_TYPES[blockId]) {
+                handItemMesh.visible = true;
+                handItemMesh.material = BLOCK_TYPES[blockId].mat;
+                document.getElementById('debug-block').innerText = `Selected: ${BLOCK_TYPES[blockId].name}`;
+            } else {
+                handItemMesh.visible = false;
+                document.getElementById('debug-block').innerText = `Selected: Empty`;
+            }
         }
 
+        function selectHotbarSlot(idx) {
+            selectedHotbarIndex = idx;
+            document.querySelectorAll('.hotbar-slot').forEach((s, i) => {
+                if (i === idx) s.classList.add('active');
+                else s.classList.remove('active');
+            });
+            updateHeldBlock();
+        }
+
+        // --- 7. Inventory & 2x2 Crafting Logic ---
+        const craftGrid = [null, null, null, null];
+        let craftOutput = null;
+
+        function checkCraftingRecipe() {
+            craftOutput = null;
+            const filledCount = craftGrid.filter(x => x !== null).length;
+
+            // 1 Oak Log -> 4 Oak Planks (ID 4)
+            if (filledCount === 1 && craftGrid.includes(9)) {
+                craftOutput = 4;
+            }
+            // 4 Oak Planks -> 1 Crafting Table (ID 10)
+            else if (filledCount === 4 && craftGrid.every(x => x === 4)) {
+                craftOutput = 10;
+            }
+            // 1 Coal/Diamond/Stone recipes can be expanded
+            renderInventoryUI();
+        }
+
+        function renderInventoryUI() {
+            // Render 2x2 Craft Input
+            document.querySelectorAll('.craft-in').forEach(slot => {
+                const idx = parseInt(slot.dataset.cslot);
+                const item = craftGrid[idx];
+                slot.innerText = item !== null ? BLOCK_TYPES[item].name.split(' ')[0] : '';
+            });
+
+            // Render Craft Output
+            const outSlot = document.getElementById('craft-out');
+            outSlot.innerText = craftOutput !== null ? BLOCK_TYPES[craftOutput].name.split(' ')[0] : '';
+
+            // Render Main 27 Inventory
+            const mainGrid = document.getElementById('inv-main-grid');
+            mainGrid.innerHTML = '';
+            for (let i = 0; i < 27; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+                const item = mainInventory[i];
+                slot.innerText = item !== null ? BLOCK_TYPES[item].name.split(' ')[0] : '';
+                slot.addEventListener('click', () => {
+                    // Quick transfer from Main Inv to Crafting Grid
+                    if (item !== null) {
+                        for (let c = 0; c < 4; c++) {
+                            if (craftGrid[c] === null) {
+                                craftGrid[c] = item;
+                                mainInventory[i] = null;
+                                checkCraftingRecipe();
+                                break;
+                            }
+                        }
+                    }
+                });
+                mainGrid.appendChild(slot);
+            }
+
+            // Render Hotbar inside GUI
+            const hotGrid = document.getElementById('inv-hotbar-grid');
+            hotGrid.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+                const item = hotbarItems[i];
+                slot.innerText = item !== null ? BLOCK_TYPES[item].name.split(' ')[0] : '';
+                slot.addEventListener('click', () => {
+                    // Shift item to free inventory slot
+                    if (item !== null) {
+                        const freeIdx = mainInventory.indexOf(null);
+                        if (freeIdx !== -1) {
+                            mainInventory[freeIdx] = item;
+                            hotbarItems[i] = null;
+                            syncHotbarHUD();
+                            renderInventoryUI();
+                        }
+                    }
+                });
+                hotGrid.appendChild(slot);
+            }
+        }
+
+        function syncHotbarHUD() {
+            document.querySelectorAll('#hotbar .hotbar-slot').forEach((slot, i) => {
+                const item = hotbarItems[i];
+                const keySpan = `<span class="slot-key">${i + 1}</span>`;
+                slot.innerHTML = keySpan + (item !== null ? BLOCK_TYPES[item].name.split(' ')[0] : '');
+            });
+            updateHeldBlock();
+        }
+
+        // Output Slot Click (Craft Item)
+        document.getElementById('craft-out').addEventListener('click', () => {
+            if (craftOutput !== null) {
+                const freeSlot = mainInventory.indexOf(null);
+                if (freeSlot !== -1) {
+                    mainInventory[freeSlot] = craftOutput;
+                    // Consume 1 item from each craft slot
+                    for (let c = 0; c < 4; c++) craftGrid[c] = null;
+                    checkCraftingRecipe();
+                }
+            }
+        });
+
+        // Craft input slots click (Take back item)
+        document.querySelectorAll('.craft-in').forEach(slot => {
+            slot.addEventListener('click', () => {
+                const idx = parseInt(slot.dataset.cslot);
+                if (craftGrid[idx] !== null) {
+                    const freeSlot = mainInventory.indexOf(null);
+                    if (freeSlot !== -1) {
+                        mainInventory[freeSlot] = craftGrid[idx];
+                        craftGrid[idx] = null;
+                        checkCraftingRecipe();
+                    }
+                }
+            });
+        });
+
+        // Toggle Inventory GUI
+        function toggleInventory() {
+            isInventoryOpen = !isInventoryOpen;
+            const invScreen = document.getElementById('inventory-screen');
+
+            if (isInventoryOpen) {
+                document.exitPointerLock();
+                invScreen.classList.remove('hidden');
+                renderInventoryUI();
+            } else {
+                invScreen.classList.add('hidden');
+                canvas.requestPointerLock();
+            }
+        }
+
+        // --- 8. Input Controllers ---
         const pauseScreen = document.getElementById('pause-screen');
         const playBtn = document.getElementById('btn-play');
 
@@ -692,34 +988,46 @@
 
         document.addEventListener('pointerlockchange', () => {
             isLocked = document.pointerLockElement === canvas;
-            if (isLocked) pauseScreen.classList.add('hidden');
-            else pauseScreen.classList.remove('hidden');
+            if (isLocked) {
+                pauseScreen.classList.add('hidden');
+                isInventoryOpen = false;
+                document.getElementById('inventory-screen').classList.add('hidden');
+            } else if (!isInventoryOpen) {
+                pauseScreen.classList.remove('hidden');
+            }
         });
 
         document.addEventListener('mousemove', (e) => {
-            if (!isLocked) return;
+            if (!isLocked || isInventoryOpen) return;
             player.yaw -= e.movementX * 0.0022;
             player.pitch -= e.movementY * 0.0022;
             player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, player.pitch));
         });
 
         window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyE') {
+                toggleInventory();
+                return;
+            }
+
+            if (isInventoryOpen) return;
             keys[e.code] = true;
+
             if (e.code.startsWith('Digit') && e.code !== 'Digit0') {
                 const num = parseInt(e.code.replace('Digit', '')) - 1;
-                if (num >= 0 && num < BLOCK_TYPES.length) setSlot(num);
+                if (num >= 0 && num < 9) selectHotbarSlot(num);
             }
         });
 
         window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
         window.addEventListener('wheel', (e) => {
-            if (!isLocked) return;
-            if (e.deltaY > 0) setSlot((selectedBlockIndex + 1) % BLOCK_TYPES.length);
-            else setSlot((selectedBlockIndex - 1 + BLOCK_TYPES.length) % BLOCK_TYPES.length);
+            if (!isLocked || isInventoryOpen) return;
+            if (e.deltaY > 0) selectHotbarSlot((selectedHotbarIndex + 1) % 9);
+            else selectHotbarSlot((selectedHotbarIndex - 1 + 9) % 9);
         });
 
-        // --- 7. Raycasting & Interaction ---
+        // --- 9. Raycasting & Block Interaction ---
         const raycaster = new THREE.Raycaster();
         raycaster.far = 6.0;
 
@@ -731,21 +1039,29 @@
         let targetHit = null;
 
         window.addEventListener('mousedown', (e) => {
-            if (!isLocked) return;
+            if (!isLocked || isInventoryOpen) return;
             isSwinging = true;
 
             if (!targetHit) return;
             const data = targetHit.object.userData;
 
             if (e.button === 0) {
+                // Collect broken block into inventory
+                const brokenId = data.typeIndex;
+                const freeSlot = mainInventory.indexOf(null);
+                if (freeSlot !== -1) mainInventory[freeSlot] = brokenId;
+
                 removeBlock(data.x, data.y, data.z);
             } else if (e.button === 2) {
+                const currentBlockToPlace = hotbarItems[selectedHotbarIndex];
+                if (currentBlockToPlace === null) return;
+
                 const normal = targetHit.face.normal;
                 const px = data.x + Math.round(normal.x);
                 const py = data.y + Math.round(normal.y);
                 const pz = data.z + Math.round(normal.z);
 
-                createBlock(px, py, pz, selectedBlockIndex);
+                createBlock(px, py, pz, currentBlockToPlace);
             }
         });
 
@@ -779,7 +1095,7 @@
             return false;
         }
 
-        // --- 8. Master Game Loop ---
+        // --- 10. Master Game Loop ---
         let prevTime = performance.now();
         let frameCount = 0;
         let fpsTimer = 0;
@@ -792,13 +1108,13 @@
             const delta = Math.min((time - prevTime) / 1000, 0.1);
             prevTime = time;
 
-            // Day/Night progression
+            // Day / Night Progression
             dayTime = (dayTime + delta * 0.005) % 1.0;
             const sunAngle = dayTime * Math.PI * 2;
             celestialPivot.rotation.z = sunAngle;
             const sunHeight = Math.sin(sunAngle);
 
-            // Water state detection
+            // Water Detection
             const footBlockX = Math.floor(player.pos.x);
             const footBlockY = Math.floor(player.pos.y - player.eyeHeight + 0.2);
             const footBlockZ = Math.floor(player.pos.z);
@@ -809,7 +1125,6 @@
 
             document.getElementById('underwater-tint').style.display = player.headSubmerged ? 'block' : 'none';
 
-            // Atmosphere color
             if (player.headSubmerged) {
                 scene.background.lerp(skyColorWater, delta * 4);
                 scene.fog.color.lerp(skyColorWater, delta * 4);
@@ -844,15 +1159,13 @@
                 player.pos.z + 40
             );
 
-            // Oxygen & Drowning timer
+            // Oxygen Timer
             survivalTimer += delta;
             if (survivalTimer >= 1.0) {
                 survivalTimer = 0;
                 if (player.headSubmerged) {
                     player.oxygen = Math.max(0, player.oxygen - 2);
-                    if (player.oxygen === 0) {
-                        triggerDamage(2); // Drowning damage
-                    }
+                    if (player.oxygen === 0) triggerDamage(2);
                     renderHUD();
                 } else if (player.oxygen < 20) {
                     player.oxygen = Math.min(20, player.oxygen + 4);
@@ -869,8 +1182,8 @@
                 fpsTimer = 0;
             }
 
-            // Player Physics
-            if (isLocked) {
+            // Movement & Collision
+            if (isLocked && !isInventoryOpen) {
                 const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
                 const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
                 const moveDir = new THREE.Vector3();
@@ -884,18 +1197,12 @@
                 if (isMoving) moveDir.normalize();
 
                 if (player.inWater) {
-                    // Water Swimming Physics
                     const swimSpeed = 3.2;
                     player.vel.x = moveDir.x * swimSpeed;
                     player.vel.z = moveDir.z * swimSpeed;
-
-                    if (keys['Space']) {
-                        player.vel.y = 3.5; // Swim upwards
-                    } else {
-                        player.vel.y = Math.max(-2.5, player.vel.y - 8.0 * delta); // Slow sink
-                    }
+                    if (keys['Space']) player.vel.y = 3.5;
+                    else player.vel.y = Math.max(-2.5, player.vel.y - 8.0 * delta);
                 } else {
-                    // Standard Land Physics
                     const speed = keys['ShiftLeft'] ? 7.2 : 4.6;
                     player.vel.x = moveDir.x * speed;
                     player.vel.z = moveDir.z * speed;
@@ -908,7 +1215,6 @@
                     }
                 }
 
-                // 3D Collision Detection
                 const dx = player.vel.x * delta;
                 if (!checkSolidCollision(player.pos.x + dx, player.pos.y, player.pos.z)) {
                     player.pos.x += dx;
@@ -928,7 +1234,6 @@
                     }
                 } else {
                     if (player.vel.y < 0) {
-                        // Fall Damage calculation on hard landing
                         if (!player.inWater) {
                             const fallDistance = player.fallStartY - player.pos.y;
                             if (fallDistance > 4.5) {
@@ -942,7 +1247,6 @@
                     player.vel.y = 0;
                 }
 
-                // Arm Bobbing & Swing
                 if (isMoving && player.isGrounded) {
                     walkTimer += delta * 12;
                     handItemMesh.position.y = -0.42 + Math.sin(walkTimer) * 0.03;
@@ -971,7 +1275,7 @@
             document.getElementById('debug-pos').innerText = 
                 `XYZ: ${player.pos.x.toFixed(1)} / ${player.pos.y.toFixed(1)} / ${player.pos.z.toFixed(1)}`;
 
-            if (isLocked) {
+            if (isLocked && !isInventoryOpen) {
                 raycaster.setFromCamera({ x: 0, y: 0 }, camera);
                 const meshes = Array.from(worldBlocks.values());
                 const hits = raycaster.intersectObjects(meshes, false);
