@@ -14458,3 +14458,298 @@
   chat("Part 24: HUDی Minecraft زیادکرا");
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 25: Part 1 is required.");
+    return;
+  }
+
+  if (window.__minicraftPart25Loaded) {
+    return;
+  }
+
+  window.__minicraftPart25Loaded = true;
+
+  const GAME_NAME = "ماین کڕافت";
+
+  document.title = GAME_NAME;
+
+  const menuTitle = document.querySelector(".part15-title");
+
+  if (menuTitle) {
+    menuTitle.textContent = GAME_NAME;
+  }
+
+  const overlayTitle = document.querySelector("#overlay h1");
+
+  if (overlayTitle) {
+    overlayTitle.textContent = GAME_NAME;
+  }
+
+  const isMobileDevice =
+    "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+  if (typeof renderer !== "undefined") {
+    const pixelCap = isMobileDevice ? 1 : 1.5;
+
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio || 1, pixelCap)
+    );
+  }
+
+  const NON_OPAQUE = {
+    water: 1,
+    lava: 1,
+    glass: 1,
+    leaves: 1,
+    flower_red: 1,
+    flower_yellow: 1,
+    tall_grass: 1,
+    ladder: 1,
+    torch: 1
+  };
+
+  function isOpaqueType(type) {
+    return !!type && !NON_OPAQUE[type];
+  }
+
+  const FACE_DIRS = [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0],
+    [0, 0, 1],
+    [0, 0, -1]
+  ];
+
+  function updateVisibilityFor(x, y, z) {
+    const mesh = blocks.get(blockKey(x, y, z));
+
+    if (!mesh || !mesh.userData) {
+      return;
+    }
+
+    if (!isOpaqueType(mesh.userData.type)) {
+      mesh.visible = true;
+      return;
+    }
+
+    let covered = true;
+
+    for (let i = 0; i < FACE_DIRS.length; i++) {
+      const nx = x + FACE_DIRS[i][0];
+      const ny = y + FACE_DIRS[i][1];
+      const nz = z + FACE_DIRS[i][2];
+
+      const neighbor = blocks.get(blockKey(nx, ny, nz));
+
+      if (!neighbor || !neighbor.userData || !isOpaqueType(neighbor.userData.type)) {
+        covered = false;
+        break;
+      }
+    }
+
+    mesh.visible = !covered;
+  }
+
+  function refreshAround(x, y, z) {
+    updateVisibilityFor(x, y, z);
+
+    for (let i = 0; i < FACE_DIRS.length; i++) {
+      updateVisibilityFor(
+        x + FACE_DIRS[i][0],
+        y + FACE_DIRS[i][1],
+        z + FACE_DIRS[i][2]
+      );
+    }
+  }
+
+  function refreshAllVisibility() {
+    blocks.forEach(function (mesh) {
+      if (!mesh || !mesh.userData) {
+        return;
+      }
+
+      updateVisibilityFor(mesh.userData.x, mesh.userData.y, mesh.userData.z);
+    });
+  }
+
+  const previousAddBlock = addBlock;
+
+  addBlock = function (x, y, z, type) {
+    previousAddBlock(x, y, z, type);
+    refreshAround(x, y, z);
+  };
+
+  const previousRemoveBlock = removeBlock;
+
+  removeBlock = function (x, y, z) {
+    previousRemoveBlock(x, y, z);
+    refreshAround(x, y, z);
+  };
+
+  refreshAllVisibility();
+
+  setInterval(refreshAllVisibility, 1500);
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #part25-fps {
+      position: fixed;
+      left: 8px;
+      top: 34px;
+      z-index: 97;
+      color: #7cfc00;
+      font: 12px monospace;
+      text-shadow: 1px 1px 0 #000;
+      pointer-events: none;
+      display: none;
+    }
+
+    #part25-target {
+      position: fixed;
+      left: 50%;
+      top: calc(50% + 22px);
+      transform: translateX(-50%);
+      z-index: 97;
+      color: #ffffff;
+      font-size: 12px;
+      text-shadow: 1px 1px 0 #000;
+      pointer-events: none;
+      opacity: 0.85;
+      direction: rtl;
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  const fpsEl = document.createElement("div");
+  fpsEl.id = "part25-fps";
+  document.body.appendChild(fpsEl);
+
+  const targetEl = document.createElement("div");
+  targetEl.id = "part25-target";
+  document.body.appendChild(targetEl);
+
+  const targetNames = {
+    grass: "گیا",
+    dirt: "خاک",
+    stone: "بەرد",
+    cobble: "کۆبڵ",
+    wood: "دار",
+    plank: "تەختە",
+    leaves: "گەڵا",
+    sand: "خۆڵ",
+    glass: "شووشە",
+    water: "ئاو",
+    lava: "لابا",
+    obsidian: "ئۆبسیدیەن",
+    glowstone: "گلۆستۆن",
+    sponge: "سپۆنج",
+    hay_bale: "کا",
+    coal_ore: "خەڵووز",
+    iron_ore: "ئاسن",
+    gold_ore: "زێڕ",
+    diamond_ore: "ئەڵماس",
+    bedrock: "بێدڕۆک",
+    ladder: "نەردەبان",
+    torch: "مەشخەڵ",
+    crafting_table: "مێزی دروستکردن",
+    furnace: "فڕن",
+    flower_red: "گوڵی سوور",
+    flower_yellow: "گوڵی زەرد",
+    tall_grass: "گیای درێژ"
+  };
+
+  function isAnyOverlayOpenPart25() {
+    const ids = [
+      "part15-menu",
+      "part16-inventory",
+      "part17-worlds",
+      "part18-panel",
+      "part20-settings",
+      "part7-death"
+    ];
+
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+
+      if (el && window.getComputedStyle(el).display !== "none") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function getTargetName() {
+    if (typeof raycastBlocks !== "function") {
+      return "";
+    }
+
+    let hits = [];
+
+    try {
+      hits = raycastBlocks();
+    } catch (error) {
+      return "";
+    }
+
+    if (!hits || hits.length === 0) {
+      return "";
+    }
+
+    const type = hits[0].object.userData.type;
+
+    return targetNames[type] || type || "";
+  }
+
+  let frames = 0;
+  let fpsAccum = 0;
+  let targetTimer = 0;
+
+  const part25Clock = new THREE.Clock();
+
+  function part25Loop() {
+    requestAnimationFrame(part25Loop);
+
+    const delta = Math.min(part25Clock.getDelta(), 0.05);
+
+    frames += 1;
+    fpsAccum += delta;
+
+    if (fpsAccum >= 0.5) {
+      const fps = Math.round(frames / fpsAccum);
+      fpsEl.innerText = "FPS: " + fps;
+      frames = 0;
+      fpsAccum = 0;
+    }
+
+    targetTimer -= delta;
+
+    if (targetTimer <= 0) {
+      targetTimer = 0.25;
+      targetEl.innerText = getTargetName();
+    }
+
+    const overlaysOpen = isAnyOverlayOpenPart25();
+
+    fpsEl.style.display = overlaysOpen ? "none" : "block";
+    targetEl.style.display = overlaysOpen ? "none" : "block";
+  }
+
+  part25Loop();
+
+  const chatEl = document.getElementById("part24-chat");
+
+  if (chatEl) {
+    chatEl.innerText = GAME_NAME + " — بەشی 25 چالاکە";
+    chatEl.style.opacity = "1";
+
+    setTimeout(function () {
+      chatEl.style.opacity = "0";
+    }, 5000);
+  }
+})();
+</script>
