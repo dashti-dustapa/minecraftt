@@ -13880,3 +13880,581 @@
   );
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 24: Part 1 is required.");
+    return;
+  }
+
+  if (window.__minicraftPart24Loaded) {
+    return;
+  }
+
+  window.__minicraftPart24Loaded = true;
+
+  const FOOD_KEY = "minicraft_part24_apples";
+  const XP_KEY = "minicraft_part24_xp";
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #part7-hearts { display: none !important; }
+    #mc-message { display: none !important; }
+
+    #part24-hud {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(10px + env(safe-area-inset-bottom));
+      z-index: 98;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 3px;
+      pointer-events: none;
+    }
+
+    #part24-hud #part5-hotbar {
+      position: static !important;
+      left: auto !important;
+      bottom: auto !important;
+      transform: none !important;
+      background: rgba(16, 16, 16, 0.55);
+      border: 2px solid rgba(0, 0, 0, 0.7);
+      border-radius: 4px;
+      padding: 3px;
+      gap: 3px;
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,0.06);
+    }
+
+    #part24-hud #part5-hotbar .part5-slot {
+      width: 44px;
+      height: 44px;
+      background: rgba(120, 120, 120, 0.28);
+      border: 2px solid;
+      border-color: #565656 #2b2b2b #2b2b2b #565656;
+      border-radius: 2px;
+      position: relative;
+    }
+
+    #part24-hud #part5-hotbar .part5-slot.selected {
+      border-color: #ffffff;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.85), 0 0 6px rgba(255,255,255,0.4);
+      z-index: 2;
+    }
+
+    #part24-hud #part5-hotbar .part5-preview {
+      width: calc(100% - 6px);
+      height: calc(100% - 6px);
+      border-radius: 2px;
+      image-rendering: pixelated;
+      box-shadow: none;
+      border: none;
+      background-size: cover !important;
+    }
+
+    .part8-count {
+      font-size: 12px !important;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 1px 1px 0 #000;
+      bottom: 1px !important;
+      right: 2px !important;
+    }
+
+    #part24-xprow {
+      position: relative;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid #000;
+      border-radius: 2px;
+    }
+
+    #part24-xpfill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(#9dff4d, #54c800);
+      border-radius: 1px;
+    }
+
+    #part24-xplevel {
+      position: absolute;
+      left: 50%;
+      top: -15px;
+      transform: translateX(-50%);
+      color: #80ff00;
+      font: 700 14px monospace;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    #part24-statusrow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 18px;
+    }
+
+    #part24-hearts, #part24-hunger {
+      display: flex;
+      gap: 1px;
+    }
+
+    .p24-heart {
+      width: 16px;
+      height: 16px;
+      font-size: 15px;
+      line-height: 16px;
+      color: #ff2020;
+      text-shadow: 1px 1px 0 #3a0000;
+      position: relative;
+    }
+
+    .p24-heart.empty { color: #4a1111; }
+
+    .p24-heart.half { color: #4a1111; }
+
+    .p24-heart.half::before {
+      content: "\\2665";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: #ff2020;
+      clip-path: inset(0 50% 0 0);
+      text-shadow: 1px 1px 0 #3a0000;
+    }
+
+    .p24-food {
+      width: 16px;
+      height: 16px;
+      font-size: 13px;
+      line-height: 16px;
+      position: relative;
+    }
+
+    .p24-food.empty { filter: grayscale(1) brightness(0.35); }
+
+    .p24-food.half::after {
+      content: "\\1F356";
+      position: absolute;
+      inset: 0;
+      filter: grayscale(1) brightness(0.35);
+      clip-path: inset(0 0 0 50%);
+    }
+
+    #part24-chat {
+      position: fixed;
+      left: 8px;
+      bottom: calc(84px + env(safe-area-inset-bottom));
+      z-index: 97;
+      color: #fff;
+      font: 13px monospace;
+      text-shadow: 1px 1px 0 #000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      max-width: 60vw;
+    }
+
+    #part24-starve {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 96;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(120,0,0,0.45));
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    #part24-eat {
+      position: fixed;
+      right: 10px;
+      bottom: calc(150px + env(safe-area-inset-bottom));
+      z-index: 99;
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.45);
+      border: 2px solid rgba(255,255,255,0.4);
+      color: #fff;
+      font-size: 24px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    #part24-eatcount {
+      position: absolute;
+      right: 2px;
+      bottom: 1px;
+      font-size: 12px;
+      font-weight: 700;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    @media (max-width: 640px) {
+      #part24-hud #part5-hotbar .part5-slot { width: 36px; height: 36px; }
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  function loadNumber(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      const val = parseInt(raw, 10);
+      return isNaN(val) ? fallback : val;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function saveNumber(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+    } catch (error) {}
+  }
+
+  let apples = loadNumber(FOOD_KEY, 2);
+  let xp = loadNumber(XP_KEY, 0);
+  let hunger = 20;
+  let hungerTimer = 0;
+  let lastHealth = -1;
+  let lastHunger = -1;
+
+  const hud = document.createElement("div");
+  hud.id = "part24-hud";
+
+  const xpRow = document.createElement("div");
+  xpRow.id = "part24-xprow";
+
+  const xpFill = document.createElement("div");
+  xpFill.id = "part24-xpfill";
+
+  const xpLevel = document.createElement("div");
+  xpLevel.id = "part24-xplevel";
+
+  xpRow.appendChild(xpFill);
+  xpRow.appendChild(xpLevel);
+
+  const statusRow = document.createElement("div");
+  statusRow.id = "part24-statusrow";
+
+  const heartsRow = document.createElement("div");
+  heartsRow.id = "part24-hearts";
+
+  const hungerRow = document.createElement("div");
+  hungerRow.id = "part24-hunger";
+
+  const heartEls = [];
+  const foodEls = [];
+
+  for (let i = 0; i < 10; i++) {
+    const heart = document.createElement("span");
+    heart.className = "p24-heart";
+    heart.textContent = "\u2665";
+    heartsRow.appendChild(heart);
+    heartEls.push(heart);
+
+    const food = document.createElement("span");
+    food.className = "p24-food";
+    food.textContent = "\uD83C\uDF56";
+    hungerRow.appendChild(food);
+    foodEls.push(food);
+  }
+
+  statusRow.appendChild(heartsRow);
+  statusRow.appendChild(hungerRow);
+
+  hud.appendChild(xpRow);
+  hud.appendChild(statusRow);
+
+  const hotbar = document.getElementById("part5-hotbar");
+
+  if (hotbar && hotbar.parentNode) {
+    hotbar.parentNode.removeChild(hotbar);
+    hud.appendChild(hotbar);
+  }
+
+  document.body.appendChild(hud);
+
+  const chatEl = document.createElement("div");
+  chatEl.id = "part24-chat";
+  document.body.appendChild(chatEl);
+
+  const starveEl = document.createElement("div");
+  starveEl.id = "part24-starve";
+  document.body.appendChild(starveEl);
+
+  const eatBtn = document.createElement("button");
+  eatBtn.id = "part24-eat";
+  eatBtn.innerHTML =
+    '\uD83C\uDF4E<span id="part24-eatcount"></span>';
+  document.body.appendChild(eatBtn);
+
+  const eatCount = document.getElementById("part24-eatcount");
+
+  let chatTimer = null;
+  let lastMcText = "";
+
+  function chat(text) {
+    chatEl.innerText = text;
+    chatEl.style.opacity = "1";
+
+    clearTimeout(chatTimer);
+
+    chatTimer = setTimeout(function () {
+      chatEl.style.opacity = "0";
+    }, 6000);
+  }
+
+  const mcMessage = document.getElementById("mc-message");
+
+  if (mcMessage && window.MutationObserver) {
+    const observer = new MutationObserver(function () {
+      const text = mcMessage.innerText || mcMessage.textContent || "";
+
+      if (text && text !== lastMcText) {
+        lastMcText = text;
+        chat(text);
+      }
+    });
+
+    observer.observe(mcMessage, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+  }
+
+  function updateEatBadge() {
+    eatCount.innerText = apples;
+  }
+
+  updateEatBadge();
+
+  function updateHeartsDom(health) {
+    const fullHearts = Math.floor(health / 2);
+    const halfHeart = health % 2 === 1;
+
+    for (let i = 0; i < 10; i++) {
+      const el = heartEls[i];
+
+      el.className = "p24-heart";
+
+      if (i < fullHearts) {
+        el.classList.add("full");
+      } else if (i === fullHearts && halfHeart) {
+        el.classList.add("half");
+      } else {
+        el.classList.add("empty");
+      }
+    }
+  }
+
+  function updateHungerDom() {
+    const fullFood = Math.floor(hunger / 2);
+    const halfFood = hunger % 2 === 1;
+
+    for (let i = 0; i < 10; i++) {
+      const el = foodEls[i];
+
+      el.className = "p24-food";
+
+      if (i < fullFood) {
+        el.classList.add("full");
+      } else if (i === fullFood && halfFood) {
+        el.classList.add("half");
+      } else {
+        el.classList.add("empty");
+      }
+    }
+  }
+
+  function updateXpDom() {
+    const level = Math.floor(xp / 30);
+    const progress = (xp % 30) / 30;
+
+    xpFill.style.width = Math.round(progress * 100) + "%";
+    xpLevel.innerText = xp > 0 ? String(level) : "";
+  }
+
+  updateXpDom();
+  updateHungerDom();
+
+  function readHealth() {
+    const part7Hearts = document.getElementById("part7-hearts");
+
+    if (!part7Hearts) {
+      return 20;
+    }
+
+    const full = part7Hearts.querySelectorAll(".part7-heart-full").length;
+
+    return full * 2;
+  }
+
+  function addXp(amount) {
+    xp += amount;
+    saveNumber(XP_KEY, xp);
+    updateXpDom();
+  }
+
+  function gainFoodChance(type) {
+    let chance = 0;
+
+    if (type === "leaves") chance = 0.12;
+    if (type === "tall_grass") chance = 0.18;
+
+    if (chance > 0 && Math.random() < chance) {
+      apples += 1;
+      saveNumber(FOOD_KEY, apples);
+      updateEatBadge();
+      chat("+1 \uD83C\uDF4E");
+    }
+  }
+
+  function eat() {
+    if (apples > 0 && hunger < 20) {
+      apples -= 1;
+      hunger = Math.min(20, hunger + 4);
+
+      saveNumber(FOOD_KEY, apples);
+      updateEatBadge();
+      updateHungerDom();
+
+      chat("\uD83C\uDF4E سێوێک خوارد");
+    } else if (apples <= 0) {
+      chat("سێوت نییە");
+    }
+  }
+
+  const previousRemoveBlock = removeBlock;
+
+  removeBlock = function (x, y, z) {
+    const key = blockKey(x, y, z);
+    const mesh = blocks.get(key);
+    const type = mesh && mesh.userData ? mesh.userData.type : null;
+
+    previousRemoveBlock(x, y, z);
+
+    if (type && type !== "bedrock" && type !== "water") {
+      addXp(1);
+      gainFoodChance(type);
+    }
+  };
+
+  const previousUpdatePlayer = updatePlayer;
+
+  updatePlayer = function (delta) {
+    const oldX = player.x;
+    const oldZ = player.z;
+
+    previousUpdatePlayer(delta);
+
+    if (hunger <= 0) {
+      player.x = oldX + (player.x - oldX) * 0.55;
+      player.z = oldZ + (player.z - oldZ) * 0.55;
+
+      camera.position.x = player.x;
+      camera.position.z = player.z;
+    }
+  };
+
+  window.addEventListener(
+    "keydown",
+    function (event) {
+      if (event.code !== "KeyQ") {
+        return;
+      }
+
+      const overlays = [
+        "part15-menu",
+        "part16-inventory",
+        "part17-worlds",
+        "part18-panel",
+        "part20-settings",
+        "part7-death"
+      ];
+
+      for (let i = 0; i < overlays.length; i++) {
+        const el = document.getElementById(overlays[i]);
+
+        if (el && window.getComputedStyle(el).display !== "none") {
+          return;
+        }
+      }
+
+      eat();
+      event.stopImmediatePropagation();
+    },
+    true
+  );
+
+  eatBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+    eat();
+  });
+
+  const part24Touch =
+    "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+  let prevPlayerX = player.x;
+  let prevPlayerZ = player.z;
+
+  const part24Clock = new THREE.Clock();
+
+  function part24Loop() {
+    requestAnimationFrame(part24Loop);
+
+    const delta = Math.min(part24Clock.getDelta(), 0.05);
+
+    const health = readHealth();
+
+    if (health !== lastHealth) {
+      if (lastHealth === 0 && health === 20) {
+        hunger = 20;
+        updateHungerDom();
+      }
+
+      lastHealth = health;
+      updateHeartsDom(health);
+    }
+
+    const dx = player.x - prevPlayerX;
+    const dz = player.z - prevPlayerZ;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+
+    prevPlayerX = player.x;
+    prevPlayerZ = player.z;
+
+    const moving = dist / Math.max(delta, 0.001) > 0.6;
+
+    hungerTimer += delta;
+
+    const interval = moving ? 7 : 20;
+
+    if (hungerTimer >= interval) {
+      hungerTimer = 0;
+
+      if (hunger > 0) {
+        hunger -= 1;
+        updateHungerDom();
+      }
+    }
+
+    if (hunger !== lastHunger) {
+      lastHunger = hunger;
+      updateHungerDom();
+    }
+
+    starveEl.style.opacity = hunger <= 2 ? "1" : "0";
+
+    eatBtn.style.display = part24Touch ? "flex" : "none";
+  }
+
+  part24Loop();
+
+  chat("Part 24: HUDی Minecraft زیادکرا");
+})();
+</script>
