@@ -12260,3 +12260,420 @@
   );
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 21: سەرەتا دەبێت Part 1 هەبێت.");
+    return;
+  }
+
+  if (window.__minicraftPart21Loaded) {
+    return;
+  }
+
+  window.__minicraftPart21Loaded = true;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #part5-hotbar {
+      pointer-events: auto !important;
+      z-index: 29 !important;
+    }
+
+    #part5-hotbar .part5-slot {
+      pointer-events: auto !important;
+      cursor: pointer;
+    }
+
+    .part21-boat-btn {
+      font-size: calc(var(--part20-btn, 64px) * 0.3);
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  let part21MessageTimer = null;
+
+  function showPart21Message(text) {
+    let message = document.getElementById("mc-message");
+
+    if (!message) {
+      message = document.createElement("div");
+      message.id = "mc-message";
+      document.body.appendChild(message);
+    }
+
+    message.innerText = text;
+    message.style.opacity = "1";
+
+    clearTimeout(part21MessageTimer);
+
+    part21MessageTimer = setTimeout(function () {
+      message.style.opacity = "0";
+    }, 2200);
+  }
+
+  function isPart21Dead() {
+    const death = document.getElementById("part7-death");
+
+    return death && death.style.display === "flex";
+  }
+
+  function isAnyOverlayOpenPart21() {
+    const ids = [
+      "part15-menu",
+      "part16-inventory",
+      "part17-worlds",
+      "part18-panel",
+      "part20-settings"
+    ];
+
+    for (let i = 0; i < ids.length; i++) {
+      const el = document.getElementById(ids[i]);
+
+      if (el && el.style.display !== "none") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function canUsePart21Controls() {
+    return !isAnyOverlayOpenPart21() && !isPart21Dead();
+  }
+
+  function simulateMouseButton(button) {
+    try {
+      const common = {
+        button: button,
+        bubbles: true,
+        cancelable: true,
+        view: window
+      };
+
+      if (window.PointerEvent) {
+        document.dispatchEvent(
+          new PointerEvent(
+            "pointerdown",
+            Object.assign(
+              {
+                pointerId: 1,
+                pointerType: "touch",
+                isPrimary: true
+              },
+              common
+            )
+          )
+        );
+      }
+
+      document.dispatchEvent(new MouseEvent("mousedown", common));
+
+      setTimeout(function () {
+        if (window.PointerEvent) {
+          document.dispatchEvent(
+            new PointerEvent(
+              "pointerup",
+              Object.assign(
+                {
+                  pointerId: 1,
+                  pointerType: "touch",
+                  isPrimary: true
+                },
+                common
+              )
+            )
+          );
+        }
+
+        document.dispatchEvent(new MouseEvent("mouseup", common));
+      }, 70);
+    } catch (error) {}
+  }
+
+  function simulateKey(code) {
+    try {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: code,
+          bubbles: true,
+          cancelable: true
+        })
+      );
+
+      setTimeout(function () {
+        document.dispatchEvent(
+          new KeyboardEvent("keyup", {
+            code: code,
+            bubbles: true,
+            cancelable: true
+          })
+        );
+      }, 60);
+    } catch (error) {}
+  }
+
+  function getHotbarSlotFromTarget(target) {
+    if (!target || typeof target.closest !== "function") {
+      return null;
+    }
+
+    const slot = target.closest(".part5-slot");
+
+    if (!slot) {
+      return null;
+    }
+
+    const hotbar = document.getElementById("part5-hotbar");
+
+    if (!hotbar || slot.parentElement !== hotbar) {
+      return null;
+    }
+
+    return slot;
+  }
+
+  function selectHotbarSlot(slot) {
+    const hotbar = document.getElementById("part5-hotbar");
+
+    if (!hotbar) {
+      return;
+    }
+
+    const index = Array.prototype.indexOf.call(hotbar.children, slot);
+
+    if (index >= 0 && index < 9) {
+      simulateKey("Digit" + (index + 1));
+    }
+  }
+
+  document.addEventListener(
+    "touchstart",
+    function (event) {
+      const slot = getHotbarSlotFromTarget(event.target);
+
+      if (!slot) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!canUsePart21Controls()) {
+        return;
+      }
+
+      selectHotbarSlot(slot);
+    },
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  document.addEventListener(
+    "click",
+    function (event) {
+      const slot = getHotbarSlotFromTarget(event.target);
+
+      if (!slot) {
+        return;
+      }
+
+      if (!canUsePart21Controls()) {
+        return;
+      }
+
+      selectHotbarSlot(slot);
+    },
+    true
+  );
+
+  const mineBtn = document.getElementById("part20-mine");
+  const placeBtn = document.getElementById("part20-place");
+
+  let mineInterval = null;
+  let placeInterval = null;
+
+  function stopMine() {
+    if (mineInterval) {
+      clearInterval(mineInterval);
+      mineInterval = null;
+    }
+  }
+
+  function stopPlace() {
+    if (placeInterval) {
+      clearInterval(placeInterval);
+      placeInterval = null;
+    }
+  }
+
+  function startMine() {
+    if (!canUsePart21Controls() || mineInterval) {
+      return;
+    }
+
+    simulateMouseButton(0);
+
+    mineInterval = setInterval(function () {
+      if (canUsePart21Controls()) {
+        simulateMouseButton(0);
+      } else {
+        stopMine();
+      }
+    }, 260);
+  }
+
+  function startPlace() {
+    if (!canUsePart21Controls() || placeInterval) {
+      return;
+    }
+
+    simulateMouseButton(2);
+
+    placeInterval = setInterval(function () {
+      if (canUsePart21Controls()) {
+        simulateMouseButton(2);
+      } else {
+        stopPlace();
+      }
+    }, 230);
+  }
+
+  if (mineBtn) {
+    mineBtn.addEventListener(
+      "touchstart",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        startMine();
+      },
+      true
+    );
+
+    mineBtn.addEventListener(
+      "touchend",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        stopMine();
+      },
+      true
+    );
+
+    mineBtn.addEventListener(
+      "touchcancel",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        stopMine();
+      },
+      true
+    );
+  }
+
+  if (placeBtn) {
+    placeBtn.addEventListener(
+      "touchstart",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        startPlace();
+      },
+      true
+    );
+
+    placeBtn.addEventListener(
+      "touchend",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        stopPlace();
+      },
+      true
+    );
+
+    placeBtn.addEventListener(
+      "touchcancel",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        stopPlace();
+      },
+      true
+    );
+  }
+
+  const part20Buttons = document.getElementById("part20-buttons");
+
+  if (part20Buttons && window.__minicraftPart19Loaded) {
+    const boatSpawnBtn = document.createElement("div");
+    boatSpawnBtn.className = "part20-action-btn part21-boat-btn";
+    boatSpawnBtn.innerText = "🚤";
+
+    boatSpawnBtn.addEventListener(
+      "touchstart",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!canUsePart21Controls()) {
+          return;
+        }
+
+        simulateKey("KeyB");
+      },
+      true
+    );
+
+    const boatToggleBtn = document.createElement("div");
+    boatToggleBtn.className = "part20-action-btn part21-boat-btn";
+    boatToggleBtn.innerText = "⛵";
+
+    boatToggleBtn.addEventListener(
+      "touchstart",
+      function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!canUsePart21Controls()) {
+          return;
+        }
+
+        simulateKey("KeyN");
+      },
+      true
+    );
+
+    part20Buttons.appendChild(boatSpawnBtn);
+    part20Buttons.appendChild(boatToggleBtn);
+  }
+
+  const part21Clock = new THREE.Clock();
+
+  function part21Loop() {
+    requestAnimationFrame(part21Loop);
+
+    part21Clock.getDelta();
+
+    if (!canUsePart21Controls()) {
+      stopMine();
+      stopPlace();
+    }
+  }
+
+  part21Loop();
+
+  showPart21Message(
+    "Part 21: هۆتبار بە دەست، شکاندن/دانان بە ڕاگرتن و دوگمەی بەلەم زیادکرا"
+  );
+})();
+</script>
