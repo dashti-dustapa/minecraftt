@@ -12677,3 +12677,856 @@
   );
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 22: Part 1 is required.");
+    return;
+  }
+
+  if (window.__minicraftPart22Loaded) {
+    return;
+  }
+
+  window.__minicraftPart22Loaded = true;
+
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+
+  if (!viewportMeta) {
+    const meta = document.createElement("meta");
+    meta.name = "viewport";
+    document.head.appendChild(meta);
+  }
+
+  const metaTag = document.querySelector('meta[name="viewport"]');
+
+  if (metaTag) {
+    metaTag.content =
+      "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
+  }
+
+  const style = document.createElement("style");
+  style.textContent = `
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      position: fixed;
+      overscroll-behavior: none;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #part20-controls,
+    #part20-gear {
+      display: none !important;
+    }
+
+    #part15-menu,
+    #part16-inventory,
+    #part17-worlds,
+    #part18-panel,
+    #part20-settings,
+    #part7-death {
+      z-index: 130 !important;
+    }
+
+    #part5-hotbar {
+      z-index: 100 !important;
+      pointer-events: auto !important;
+    }
+
+    #part5-hotbar .part5-slot {
+      pointer-events: auto !important;
+      cursor: pointer;
+    }
+
+    #crosshair {
+      z-index: 35 !important;
+      font-size: 0 !important;
+      width: 22px !important;
+      height: 22px !important;
+      background:
+        linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) center / 2px 100% no-repeat,
+        linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) center / 100% 2px no-repeat;
+      filter: drop-shadow(0 0 2px black);
+    }
+
+    #part22-mobile {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: none;
+      pointer-events: none;
+    }
+
+    #part22-look {
+      position: absolute;
+      inset: 0;
+      pointer-events: auto;
+      touch-action: none;
+    }
+
+    #part22-joystick {
+      position: absolute;
+      left: 18px;
+      bottom: calc(24px + env(safe-area-inset-bottom));
+      width: 132px;
+      height: 132px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.16);
+      border: 3px solid rgba(255, 255, 255, 0.45);
+      pointer-events: auto;
+      touch-action: none;
+      z-index: 95;
+    }
+
+    #part22-stick {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 56px;
+      height: 56px;
+      margin-left: -28px;
+      margin-top: -28px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.55);
+      pointer-events: none;
+    }
+
+    #part22-buttons {
+      position: absolute;
+      right: 14px;
+      bottom: calc(22px + env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: repeat(3, 64px);
+      gap: 10px;
+      z-index: 96;
+      pointer-events: auto;
+    }
+
+    .part22-btn {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 3px solid rgba(255, 255, 255, 0.5);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .part22-btn.active {
+      background: rgba(127, 140, 255, 0.65);
+    }
+
+    #part22-fullscreen {
+      position: absolute;
+      top: calc(10px + env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%);
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.4);
+      border: 2px solid rgba(255,255,255,0.45);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      pointer-events: auto;
+      z-index: 96;
+      touch-action: none;
+    }
+  `;
+
+  document.head.appendChild(style);
+
+  let part22MessageTimer = null;
+
+  function showPart22Message(text) {
+    let message = document.getElementById("mc-message");
+
+    if (!message) {
+      message = document.createElement("div");
+      message.id = "mc-message";
+      document.body.appendChild(message);
+    }
+
+    message.innerText = text;
+    message.style.opacity = "1";
+
+    clearTimeout(part22MessageTimer);
+
+    part22MessageTimer = setTimeout(function () {
+      message.style.opacity = "0";
+    }, 2200);
+  }
+
+  const part22Touch =
+    "ontouchstart" in window || navigator.maxTouchPoints > 0;
+
+  let part22FakeLock = false;
+
+  try {
+    const nativeDescriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      "pointerLockElement"
+    );
+
+    const nativeGet =
+      nativeDescriptor && nativeDescriptor.get
+        ? nativeDescriptor.get
+        : null;
+
+    Object.defineProperty(document, "pointerLockElement", {
+      configurable: true,
+      get: function () {
+        if (part22FakeLock) {
+          return document.body;
+        }
+
+        if (nativeGet) {
+          return nativeGet.call(document);
+        }
+
+        return null;
+      }
+    });
+  } catch (error) {}
+
+  function setPart22FakeLock(state) {
+    if (part22FakeLock === state) {
+      return;
+    }
+
+    part22FakeLock = state;
+
+    try {
+      document.dispatchEvent(new Event("pointerlockchange"));
+    } catch (error) {}
+  }
+
+  try {
+    const currentRequestPointerLock =
+      document.body.requestPointerLock;
+
+    document.body.requestPointerLock = function () {
+      if (part22Touch) {
+        setPart22FakeLock(true);
+        return;
+      }
+
+      if (currentRequestPointerLock) {
+        currentRequestPointerLock.call(document.body);
+      }
+    };
+  } catch (error) {}
+
+  function isElementVisible(id) {
+    const el = document.getElementById(id);
+
+    if (!el) {
+      return false;
+    }
+
+    return window.getComputedStyle(el).display !== "none";
+  }
+
+  function isPart15MenuVisible() {
+    return isElementVisible("part15-menu");
+  }
+
+  function isPart7DeadNow() {
+    return isElementVisible("part7-death");
+  }
+
+  function isAnyOverlayOpenPart22() {
+    return (
+      isPart15MenuVisible() ||
+      isElementVisible("part16-inventory") ||
+      isElementVisible("part17-worlds") ||
+      isElementVisible("part18-panel") ||
+      isElementVisible("part20-settings") ||
+      isPart7DeadNow()
+    );
+  }
+
+  function requestFullscreen() {
+    const el = document.documentElement;
+
+    const fn =
+      el.requestFullscreen ||
+      el.webkitRequestFullscreen ||
+      el.mozRequestFullscreen ||
+      el.msRequestFullscreen;
+
+    if (!fn) {
+      return;
+    }
+
+    try {
+      const promise = fn.call(el);
+
+      if (promise && promise.catch) {
+        promise.catch(function () {});
+      }
+    } catch (error) {}
+  }
+
+  const enterBtn = document.getElementById("part15-btn-enter");
+  const newBtn = document.getElementById("part15-btn-new");
+
+  if (enterBtn) {
+    enterBtn.addEventListener("click", requestFullscreen);
+  }
+
+  if (newBtn) {
+    newBtn.addEventListener("click", requestFullscreen);
+  }
+
+  function makeEvent(type, button) {
+    const options = {
+      button: button,
+      bubbles: true,
+      cancelable: true,
+      view: window
+    };
+
+    try {
+      if (window.PointerEvent) {
+        return new PointerEvent(
+          type,
+          Object.assign(
+            {
+              pointerId: 1,
+              pointerType: "touch",
+              isPrimary: true
+            },
+            options
+          )
+        );
+      }
+    } catch (error) {}
+
+    return new MouseEvent(type, options);
+  }
+
+  function simulateMouseButton(button) {
+    try {
+      document.dispatchEvent(makeEvent("pointerdown", button));
+      document.dispatchEvent(makeEvent("mousedown", button));
+
+      setTimeout(function () {
+        document.dispatchEvent(makeEvent("pointerup", button));
+        document.dispatchEvent(makeEvent("mouseup", button));
+      }, 70);
+    } catch (error) {}
+  }
+
+  function simulateKey(code) {
+    try {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: code,
+          bubbles: true,
+          cancelable: true
+        })
+      );
+
+      setTimeout(function () {
+        document.dispatchEvent(
+          new KeyboardEvent("keyup", {
+            code: code,
+            bubbles: true,
+            cancelable: true
+          })
+        );
+      }, 60);
+    } catch (error) {}
+  }
+
+  const controlsRoot = document.createElement("div");
+  controlsRoot.id = "part22-mobile";
+
+  controlsRoot.innerHTML = `
+    <div id="part22-look"></div>
+
+    <div id="part22-joystick">
+      <div id="part22-stick"></div>
+    </div>
+
+    <div id="part22-buttons">
+      <div class="part22-btn" id="part22-jump">⬆</div>
+      <div class="part22-btn" id="part22-break">⛏</div>
+      <div class="part22-btn" id="part22-place">🧱</div>
+      <div class="part22-btn" id="part22-sprint">⚡</div>
+      <div class="part22-btn" id="part22-inv">🎒</div>
+      <div class="part22-btn" id="part22-menu">☰</div>
+    </div>
+
+    <div id="part22-fullscreen">⛶</div>
+  `;
+
+  document.body.appendChild(controlsRoot);
+
+  const lookArea = document.getElementById("part22-look");
+  const joystick = document.getElementById("part22-joystick");
+  const stick = document.getElementById("part22-stick");
+  const jumpBtn = document.getElementById("part22-jump");
+  const breakBtn = document.getElementById("part22-break");
+  const placeBtn = document.getElementById("part22-place");
+  const sprintBtn = document.getElementById("part22-sprint");
+  const invBtn = document.getElementById("part22-inv");
+  const menuBtn = document.getElementById("part22-menu");
+  const fullscreenBtn = document.getElementById("part22-fullscreen");
+  const buttonsContainer = document.getElementById("part22-buttons");
+
+  if (buttonsContainer && window.__minicraftPart19Loaded) {
+    const boatSpawnBtn = document.createElement("div");
+    boatSpawnBtn.className = "part22-btn";
+    boatSpawnBtn.innerText = "🚤";
+    boatSpawnBtn.style.fontSize = "22px";
+
+    boatSpawnBtn.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      simulateKey("KeyB");
+    });
+
+    const boatToggleBtn = document.createElement("div");
+    boatToggleBtn.className = "part22-btn";
+    boatToggleBtn.innerText = "⛵";
+    boatToggleBtn.style.fontSize = "22px";
+
+    boatToggleBtn.addEventListener("pointerdown", function (event) {
+      event.preventDefault();
+      simulateKey("KeyN");
+    });
+
+    buttonsContainer.appendChild(boatSpawnBtn);
+    buttonsContainer.appendChild(boatToggleBtn);
+  }
+
+  let joystickPointerId = null;
+  let joystickCenter = null;
+
+  let lookPointerId = null;
+  let lastLook = null;
+
+  let breakInterval = null;
+  let placeInterval = null;
+  let part22Sprint = false;
+
+  function clearTouchMovementKeys() {
+    if (typeof keys !== "object") {
+      return;
+    }
+
+    keys["KeyW"] = false;
+    keys["KeyA"] = false;
+    keys["KeyS"] = false;
+    keys["KeyD"] = false;
+  }
+
+  function resetJoystick() {
+    joystickPointerId = null;
+    joystickCenter = null;
+    stick.style.transform = "translate(0px, 0px)";
+    clearTouchMovementKeys();
+  }
+
+  function updateJoystick(event) {
+    if (!joystickCenter) {
+      return;
+    }
+
+    const radius = joystick.offsetWidth / 2;
+    const maxMove = radius * 0.62;
+
+    let dx = event.clientX - joystickCenter.x;
+    let dy = event.clientY - joystickCenter.y;
+
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist > maxMove) {
+      dx = (dx / dist) * maxMove;
+      dy = (dy / dist) * maxMove;
+    }
+
+    stick.style.transform = "translate(" + dx + "px, " + dy + "px)";
+
+    if (typeof keys === "object") {
+      const deadZone = 0.25;
+      const nx = dx / maxMove;
+      const ny = dy / maxMove;
+
+      keys["KeyW"] = ny < -deadZone;
+      keys["KeyS"] = ny > deadZone;
+      keys["KeyA"] = nx < -deadZone;
+      keys["KeyD"] = nx > deadZone;
+    }
+  }
+
+  joystick.addEventListener("pointerdown", function (event) {
+    if (!part22Touch || isAnyOverlayOpenPart22()) {
+      return;
+    }
+
+    event.preventDefault();
+
+    joystickPointerId = event.pointerId;
+
+    try {
+      joystick.setPointerCapture(event.pointerId);
+    } catch (error) {}
+
+    const rect = joystick.getBoundingClientRect();
+
+    joystickCenter = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+
+    updateJoystick(event);
+  });
+
+  joystick.addEventListener("pointermove", function (event) {
+    if (event.pointerId !== joystickPointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    updateJoystick(event);
+  });
+
+  function endJoystick(event) {
+    if (event.pointerId !== joystickPointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    resetJoystick();
+  }
+
+  joystick.addEventListener("pointerup", endJoystick);
+  joystick.addEventListener("pointercancel", endJoystick);
+
+  lookArea.addEventListener("pointerdown", function (event) {
+    if (!part22Touch || isAnyOverlayOpenPart22()) {
+      return;
+    }
+
+    if (event.pointerType === "mouse") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (lookPointerId !== null) {
+      return;
+    }
+
+    lookPointerId = event.pointerId;
+    lastLook = {
+      x: event.clientX,
+      y: event.clientY
+    };
+
+    try {
+      lookArea.setPointerCapture(event.pointerId);
+    } catch (error) {}
+  });
+
+  lookArea.addEventListener("pointermove", function (event) {
+    if (event.pointerId !== lookPointerId || !lastLook) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart22() || isPart7DeadNow()) {
+      return;
+    }
+
+    const dx = event.clientX - lastLook.x;
+    const dy = event.clientY - lastLook.y;
+
+    lastLook = {
+      x: event.clientX,
+      y: event.clientY
+    };
+
+    let sensitivity = 1;
+
+    try {
+      const raw = localStorage.getItem("minicraft_part20_settings");
+
+      if (raw) {
+        const parsed = JSON.parse(raw);
+
+        if (typeof parsed.lookSensitivity === "number") {
+          sensitivity = parsed.lookSensitivity;
+        }
+      }
+    } catch (error) {}
+
+    const lookPower = sensitivity * 0.0042;
+
+    yaw -= dx * lookPower;
+    pitch -= dy * lookPower;
+
+    const maxPitch = Math.PI / 2 - 0.01;
+
+    if (pitch > maxPitch) {
+      pitch = maxPitch;
+    }
+
+    if (pitch < -maxPitch) {
+      pitch = -maxPitch;
+    }
+
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+    camera.rotation.z = 0;
+  });
+
+  function endLook(event) {
+    if (event.pointerId !== lookPointerId) {
+      return;
+    }
+
+    lookPointerId = null;
+    lastLook = null;
+  }
+
+  lookArea.addEventListener("pointerup", endLook);
+  lookArea.addEventListener("pointercancel", endLook);
+
+  jumpBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart22()) {
+      return;
+    }
+
+    if (typeof keys === "object") {
+      keys["Space"] = true;
+    }
+  });
+
+  function releaseJump(event) {
+    event.preventDefault();
+
+    if (typeof keys === "object") {
+      keys["Space"] = false;
+    }
+  }
+
+  jumpBtn.addEventListener("pointerup", releaseJump);
+  jumpBtn.addEventListener("pointercancel", releaseJump);
+
+  function stopBreak() {
+    if (breakInterval) {
+      clearInterval(breakInterval);
+      breakInterval = null;
+    }
+  }
+
+  function stopPlace() {
+    if (placeInterval) {
+      clearInterval(placeInterval);
+      placeInterval = null;
+    }
+  }
+
+  function startBreak() {
+    if (isAnyOverlayOpenPart22() || breakInterval) {
+      return;
+    }
+
+    simulateMouseButton(0);
+
+    breakInterval = setInterval(function () {
+      if (isAnyOverlayOpenPart22()) {
+        stopBreak();
+      } else {
+        simulateMouseButton(0);
+      }
+    }, 260);
+  }
+
+  function startPlace() {
+    if (isAnyOverlayOpenPart22() || placeInterval) {
+      return;
+    }
+
+    simulateMouseButton(2);
+
+    placeInterval = setInterval(function () {
+      if (isAnyOverlayOpenPart22()) {
+        stopPlace();
+      } else {
+        simulateMouseButton(2);
+      }
+    }, 230);
+  }
+
+  breakBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+    startBreak();
+  });
+
+  breakBtn.addEventListener("pointerup", function (event) {
+    event.preventDefault();
+    stopBreak();
+  });
+
+  breakBtn.addEventListener("pointercancel", function (event) {
+    event.preventDefault();
+    stopBreak();
+  });
+
+  placeBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+    startPlace();
+  });
+
+  placeBtn.addEventListener("pointerup", function (event) {
+    event.preventDefault();
+    stopPlace();
+  });
+
+  placeBtn.addEventListener("pointercancel", function (event) {
+    event.preventDefault();
+    stopPlace();
+  });
+
+  sprintBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    part22Sprint = !part22Sprint;
+
+    sprintBtn.classList.toggle("active", part22Sprint);
+
+    showPart22Message(
+      part22Sprint ? "Sprint ON" : "Sprint OFF"
+    );
+  });
+
+  invBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isAnyOverlayOpenPart22()) {
+      return;
+    }
+
+    simulateKey("KeyE");
+  });
+
+  menuBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+
+    if (isPart7DeadNow()) {
+      return;
+    }
+
+    setPart22FakeLock(false);
+  });
+
+  fullscreenBtn.addEventListener("pointerdown", function (event) {
+    event.preventDefault();
+    requestFullscreen();
+  });
+
+  const previousUpdatePlayer = updatePlayer;
+
+  updatePlayer = function (delta) {
+    if (isAnyOverlayOpenPart22()) {
+      return;
+    }
+
+    const oldX = player.x;
+    const oldZ = player.z;
+
+    previousUpdatePlayer(delta);
+
+    if (part22Sprint && typeof collides === "function") {
+      const dx = player.x - oldX;
+      const dz = player.z - oldZ;
+
+      if (Math.abs(dx) + Math.abs(dz) > 0.0005) {
+        const boost = 0.65;
+
+        const newX = player.x + dx * boost;
+        const newZ = player.z + dz * boost;
+
+        if (!collides(newX, player.y, player.z)) {
+          player.x = newX;
+        }
+
+        if (!collides(player.x, player.y, newZ)) {
+          player.z = newZ;
+        }
+
+        camera.position.set(player.x, player.y + 1.6, player.z);
+      }
+    }
+  };
+
+  window.addEventListener("resize", function () {
+    if (typeof renderer !== "undefined") {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  const part22Clock = new THREE.Clock();
+
+  function part22Loop() {
+    requestAnimationFrame(part22Loop);
+
+    part22Clock.getDelta();
+
+    const overlaysOpen = isAnyOverlayOpenPart22();
+    const controlsActive = part22Touch && !overlaysOpen;
+
+    controlsRoot.style.display = controlsActive ? "block" : "none";
+
+    setPart22FakeLock(part22Touch && !isPart15MenuVisible());
+
+    if (part22Touch && !controlsActive) {
+      resetJoystick();
+      lookPointerId = null;
+      lastLook = null;
+
+      stopBreak();
+      stopPlace();
+
+      if (typeof keys === "object") {
+        keys["Space"] = false;
+      }
+    }
+  }
+
+  part22Loop();
+
+  showPart22Message(
+    "Part 22: Mobile full-screen controls fixed"
+  );
+})();
+</script>
