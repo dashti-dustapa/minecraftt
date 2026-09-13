@@ -15348,3 +15348,704 @@
   chat26("Part 26: جیهانی گەورە + هێرش بۆ مۆب + FPS چاککرا");
 })();
 </script>
+<script>
+(function () {
+  if (typeof scene === "undefined" || typeof blocks === "undefined") {
+    console.error("Part 27: Part 1 required.");
+    return;
+  }
+  if (window.__minicraftPart27Loaded) return;
+  window.__minicraftPart27Loaded = true;
+
+  var CHUNK = 32;
+  var Y_MIN = -4;
+  var Y_MAX = 24;
+
+  var isMobile = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+
+  var S = { rd: isMobile ? 2 : 3 };
+  try {
+    var rawS = localStorage.getItem("minicraft_part27_settings");
+    if (rawS) {
+      var pS = JSON.parse(rawS);
+      if (pS.rd) S.rd = pS.rd;
+    }
+  } catch (e) {}
+
+  function saveS() {
+    try { localStorage.setItem("minicraft_part27_settings", JSON.stringify(S)); } catch (e) {}
+  }
+
+  /* ================= ENGLISH UI ================= */
+  var DICT = {
+    "پاشەکەوتێک دۆزرایەوە.": "Save found.",
+    "باران دەبارێت": "Rain is falling",
+    "ڕەشەبا و هەورەتریشقە": "Storm and lightning",
+    "ئاسمان ساماڵ": "Clear sky",
+    "جیهان پاشەکەوت کرا": "World saved",
+    "جیهان بارکرا": "World loaded",
+    "جیهان نوێ کرایەوە": "World regenerated",
+    "گوندێکی بچووک دروستکرا": "A village was created",
+    "گوندێکی بچووک لە نزیک تۆ دروستکرا": "A village was created near you",
+    "دۆخی داهێنان چالاک کرا": "Creative mode ON",
+    "دۆخی داهێنان کوژایەوە": "Creative mode OFF",
+    "دەنگ چالاک کرا": "Sound ON",
+    "دەنگ کوژایەوە": "Sound OFF",
+    "کەمێک چاوەڕوان بکە": "Please wait",
+    "هیچ بلۆکت نییە": "No blocks left",
+    "بەلەم دروستکرا": "Boat created",
+    "سواربوویت بەلەم": "Mounted boat",
+    "لە بەلەم دابەزی": "Exited boat",
+    "بەلەمێک لە نزیکت نییە": "No boat nearby",
+    "دەبێت ئاو لەوێ هەبێت": "Water required there",
+    "مۆب کوژرا!": "Mob killed!",
+    "سێوێک خوارد": "Ate an apple",
+    "سێوت نییە": "No apple",
+    "جیهان گەورەتر بوو": "World expanded",
+    "بلۆک:": "Block:",
+    "سلۆتی": "Slot",
+    "بەتاڵ": "Empty",
+    "یاری": "Play",
+    "پاشەکەوت": "Save",
+    "سڕینەوە": "Delete",
+    "دروستکردن": "Craft",
+    "مێزی دروستکردن": "Crafting Table",
+    "فڕن": "Furnace",
+    "بینینی جیهانی پێشوو": "Load Previous World",
+    "بینینی جیهان": "Play World",
+    "دروستکردنی جیهانی نوێ": "Create New World",
+    "ڕێکخستنەکان": "Settings",
+    "جیهانەکان": "Worlds",
+    "کۆنترۆڵی مۆبایل": "Mobile Controls",
+    "ئینڤێنتۆر": "Inventory",
+    "داخستن": "Close",
+    "دۆخی داهێنان": "Creative Mode",
+    "ڕێکخستنی مۆبایل": "Mobile Settings",
+    "کۆنترۆڵی دەسکی": "Touch Controls",
+    "قەبارەی جۆیستیک": "Joystick Size",
+    "قەبارەی دوگمەکان": "Button Size",
+    "هەستیاری ڕوانین": "Look Sensitivity",
+    "ڕوونی کۆنترۆڵەکان": "Controls Opacity",
+    "گەڕانەوە": "Back",
+    "سێو": "Apple",
+    "گیای": "Grass",
+    "خاک": "Dirt",
+    "بەرد": "Stone",
+    "کۆبڵ": "Cobble",
+    "دار": "Wood",
+    "تەختە": "Plank",
+    "گەڵا": "Leaves",
+    "خۆڵ": "Sand",
+    "شووشە": "Glass",
+    "ئاو": "Water",
+    "لابا": "Lava",
+    "ئۆبسیدیەن": "Obsidian",
+    "گلۆستۆن": "Glowstone",
+    "سپۆنج": "Sponge",
+    "کا": "Hay",
+    "خەڵووز": "Coal",
+    "ئاسن": "Iron",
+    "زێڕ": "Gold",
+    "ئەڵماس": "Diamond",
+    "بێدڕۆک": "Bedrock",
+    "نەردەبان": "Ladder",
+    "مەشخەڵ": "Torch"
+  };
+
+  function translateText(str) {
+    if (!str) return str;
+    for (var k in DICT) {
+      if (str.indexOf(k) !== -1) str = str.split(k).join(DICT[k]);
+    }
+    return str;
+  }
+
+  document.title = "Minecraft";
+
+  function setTxt(sel, text) {
+    var el = document.querySelector(sel);
+    if (el) el.textContent = text;
+  }
+
+  setTxt(".part15-title", "MINECRAFT");
+  setTxt("#part15-btn-settings", "Settings");
+  setTxt("#part16-title", "Inventory");
+  setTxt("#part16-tab-craft", "Crafting");
+  setTxt("#part16-tab-furnace", "Furnace");
+  setTxt("#part16-settings-close", "Close");
+  setTxt("#part17-title", "Worlds");
+  setTxt("#part17-close", "Close");
+  setTxt("#part18-settings-close", "Close");
+  setTxt("#part20-settings-title", "Mobile Settings");
+
+  var creativeLabel = document.querySelector("#part16-creative-row label");
+  if (creativeLabel) creativeLabel.textContent = "Creative Mode";
+
+  var extraStyle = document.createElement("style");
+  extraStyle.textContent =
+    "#part23-slot-label{display:none!important}" +
+    "#part25-target{display:none!important}" +
+    "#part27-label{position:fixed;bottom:calc(112px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:99;color:#fff;font-size:12px;text-shadow:1px 1px 0 #000;pointer-events:none;opacity:.9}" +
+    "#part27-rdrow{margin:13px 0}#part27-rdrow label{display:block;margin-bottom:5px;font-size:14px}#part27-rdrow input{width:100%}";
+  document.head.appendChild(extraStyle);
+
+  var label27 = document.createElement("div");
+  label27.id = "part27-label";
+  document.body.appendChild(label27);
+
+  var translateQueued = false;
+  function scheduleTranslate() {
+    if (translateQueued) return;
+    translateQueued = true;
+    requestAnimationFrame(function () {
+      translateQueued = false;
+      runTranslate();
+    });
+  }
+
+  function fixNode(el) {
+    if (!el) return;
+    var t = el.textContent || "";
+    var nt = translateText(t);
+    if (nt !== t) el.textContent = nt;
+  }
+
+  function runTranslate() {
+    fixNode(document.getElementById("part15-status"));
+    fixNode(document.getElementById("part15-btn-enter"));
+    fixNode(document.getElementById("part18-title"));
+    fixNode(document.getElementById("part24-chat"));
+
+    var b18 = document.querySelectorAll("#part18-content .part18-btn");
+    for (var i = 0; i < b18.length; i++) fixNode(b18[i]);
+
+    var b17 = document.querySelectorAll("#part17-list .part17-small");
+    for (var j = 0; j < b17.length; j++) fixNode(b17[j]);
+
+    var i17 = document.querySelectorAll("#part17-list .part17-slot-info");
+    for (var k = 0; k < i17.length; k++) fixNode(i17[k]);
+  }
+
+  function observeTranslate(el) {
+    if (!el || !window.MutationObserver) return;
+    new MutationObserver(scheduleTranslate).observe(el, {
+      childList: true, characterData: true, subtree: true
+    });
+  }
+
+  observeTranslate(document.getElementById("part15-status"));
+  observeTranslate(document.getElementById("part15-btn-enter"));
+  observeTranslate(document.getElementById("part18-title"));
+  observeTranslate(document.getElementById("part18-content"));
+  observeTranslate(document.getElementById("part17-list"));
+  observeTranslate(document.getElementById("part24-chat"));
+
+  runTranslate();
+
+  /* ================= stop Part26 chunk meshes ================= */
+  var origSceneAdd = scene.add.bind(scene);
+  scene.add = function (obj) {
+    if (obj && obj.userData && obj.userData.isChunk) return obj;
+    return origSceneAdd(obj);
+  };
+
+  (function () {
+    var removeList = [];
+    for (var i = 0; i < scene.children.length; i++) {
+      var c = scene.children[i];
+      if (c && c.userData && c.userData.isChunk) removeList.push(c);
+    }
+    for (var j = 0; j < removeList.length; j++) {
+      scene.remove(removeList[j]);
+      if (removeList[j].geometry) removeList[j].geometry.dispose();
+    }
+  })();
+
+  /* ================= v2 chunk renderer ================= */
+  var IND2 = {
+    water: 1, glass: 1, ladder: 1, torch: 1,
+    flower_red: 1, flower_yellow: 1, tall_grass: 1
+  };
+  var SEE2 = {
+    water: 1, glass: 1, ladder: 1, torch: 1,
+    flower_red: 1, flower_yellow: 1, tall_grass: 1, leaves: 1
+  };
+
+  function tex27(draw) {
+    var c = document.createElement("canvas");
+    c.width = 16; c.height = 16;
+    var g = c.getContext("2d");
+    draw(g);
+    var t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.generateMipmaps = false;
+    return t;
+  }
+
+  var gTopBase = new THREE.MeshLambertMaterial({
+    map: tex27(function (g) {
+      var pal = ["#5fc24e", "#54b344", "#69cf59", "#4da33d"];
+      for (var x = 0; x < 16; x++) for (var y = 0; y < 16; y++) {
+        g.fillStyle = pal[(Math.random() * 4) | 0];
+        g.fillRect(x, y, 1, 1);
+      }
+    })
+  });
+  var gSideBase = new THREE.MeshLambertMaterial({
+    map: tex27(function (g) {
+      var dp = ["#8a5a2b", "#9b6a3a", "#7a4f21"];
+      var gp = ["#5fc24e", "#54b344", "#69cf59"];
+      var x, y;
+      for (x = 0; x < 16; x++) for (y = 0; y < 16; y++) {
+        g.fillStyle = dp[(Math.random() * 3) | 0];
+        g.fillRect(x, y, 1, 1);
+      }
+      for (x = 0; x < 16; x++) {
+        var d = 2 + ((Math.random() * 3) | 0);
+        for (y = 0; y < d; y++) {
+          g.fillStyle = gp[(Math.random() * 3) | 0];
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+    })
+  });
+
+  var v2MatCache = {};
+  var SHADE2 = [0.8, 0.8, 1.0, 0.5, 0.65, 0.65];
+
+  function v2Material(matKey) {
+    if (v2MatCache[matKey]) return v2MatCache[matKey];
+    var base;
+    if (matKey === "gtop") base = gTopBase;
+    else if (matKey === "gside") base = gSideBase;
+    else base = materials[matKey] || materials.stone;
+    var m = base.clone();
+    m.vertexColors = true;
+    v2MatCache[matKey] = m;
+    return m;
+  }
+
+  var COR2 = [
+    [[1,0,1],[1,0,0],[1,1,0],[1,1,1]],
+    [[0,0,0],[0,0,1],[0,1,1],[0,1,0]],
+    [[0,1,1],[1,1,1],[1,1,0],[0,1,0]],
+    [[0,0,0],[1,0,0],[1,0,1],[0,0,1]],
+    [[0,0,1],[1,0,1],[1,1,1],[0,1,1]],
+    [[1,0,0],[0,0,0],[0,1,0],[1,1,0]]
+  ];
+  var NOR2 = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  var UV2 = [[0,0],[1,0],[1,1],[0,1]];
+
+  function chunkOf(v) { return Math.floor(v / CHUNK); }
+  function cKey(cx, cz) { return cx + "," + cz; }
+
+  function typeAt(x, y, z) {
+    var m = blocks.get(blockKey(x, y, z));
+    return m ? m.userData.type : null;
+  }
+
+  function biomeTint(x, z, type) {
+    if (type !== "grass" && type !== "leaves") return null;
+    var t = Math.sin(z * 0.008) + Math.sin(x * 0.006);
+    if (t > 0.9) return [1.0, 0.97, 0.7];
+    if (t < -0.9) return [0.95, 0.98, 1.0];
+    return [0.8, 1.0, 0.8];
+  }
+
+  function hashTint27(x, y, z) {
+    var h = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
+    h = (h ^ (h >> 13)) * 1274126177;
+    h = (h ^ (h >> 16)) >>> 0;
+    return 0.96 + (h % 1000) / 1000 * 0.07;
+  }
+
+  var v2Chunks = {};
+  var v2Dirty = {};
+  var v2DirtyCount = 0;
+
+  function v2Mark(cx, cz) {
+    var k = cKey(cx, cz);
+    if (!v2Dirty[k]) { v2Dirty[k] = true; v2DirtyCount++; }
+  }
+  function v2MarkAround(x, z) {
+    v2Mark(chunkOf(x), chunkOf(z));
+    v2Mark(chunkOf(x + 1), chunkOf(z));
+    v2Mark(chunkOf(x - 1), chunkOf(z));
+    v2Mark(chunkOf(x), chunkOf(z + 1));
+    v2Mark(chunkOf(x), chunkOf(z - 1));
+  }
+
+  function v2Rebuild(cx, cz) {
+    var k = cKey(cx, cz);
+    var old = v2Chunks[k];
+    if (old) {
+      for (var i = 0; i < old.length; i++) {
+        scene.remove(old[i]);
+        old[i].geometry.dispose();
+      }
+    }
+    v2Chunks[k] = [];
+
+    var builders = {};
+    function bFor(mk) {
+      if (!builders[mk]) builders[mk] = { mk: mk, pos: [], nrm: [], uv: [], col: [], idx: [], n: 0 };
+      return builders[mk];
+    }
+
+    var x0 = cx * CHUNK, z0 = cz * CHUNK;
+
+    for (var x = x0; x < x0 + CHUNK; x++) {
+      for (var z = z0; z < z0 + CHUNK; z++) {
+        for (var y = Y_MIN; y <= Y_MAX; y++) {
+          var m = blocks.get(blockKey(x, y, z));
+          if (!m || !m.userData) continue;
+          var type = m.userData.type;
+          if (!type || IND2[type]) continue;
+          var tint = hashTint27(x, y, z);
+          var bio = biomeTint(x, z, type);
+
+          for (var d = 0; d < 6; d++) {
+            var nt = typeAt(x + NOR2[d][0], y + NOR2[d][1], z + NOR2[d][2]);
+            if (nt !== null && !SEE2[nt]) continue;
+            if (type === "leaves" && nt === "leaves") continue;
+
+            var mk = (type === "grass") ? (d === 2 ? "gtop" : "gside") : type;
+            var b = bFor(mk);
+            var shade = SHADE2[d] * tint;
+            var cr = shade, cg = shade, cb = shade;
+            if (bio) { cr *= bio[0]; cg *= bio[1]; cb *= bio[2]; }
+            var base = b.n;
+            var C = COR2[d], N = NOR2[d];
+
+            for (var q = 0; q < 4; q++) {
+              b.pos.push(x + C[q][0], y + C[q][1], z + C[q][2]);
+              b.nrm.push(N[0], N[1], N[2]);
+              b.uv.push(UV2[q][0], UV2[q][1]);
+              b.col.push(cr, cg, cb);
+            }
+            b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+            b.n += 4;
+          }
+        }
+      }
+    }
+
+    for (var bk in builders) {
+      var bb = builders[bk];
+      if (bb.n === 0) continue;
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(bb.pos, 3));
+      geo.setAttribute("normal", new THREE.Float32BufferAttribute(bb.nrm, 3));
+      geo.setAttribute("uv", new THREE.Float32BufferAttribute(bb.uv, 2));
+      geo.setAttribute("color", new THREE.Float32BufferAttribute(bb.col, 3));
+      geo.setIndex(bb.idx);
+      geo.computeBoundingSphere();
+      var mesh = new THREE.Mesh(geo, v2Material(bb.mk));
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      mesh.userData.isChunk2 = true;
+      mesh.userData.chunk = k;
+      origSceneAdd(mesh);
+      v2Chunks[k].push(mesh);
+    }
+  }
+
+  /* ================= world lazy generation ================= */
+  var generated = {};
+  var genQueue = [];
+  var genQueueSet = {};
+  var genRadius = 2;
+
+  function prng(cx, cz) {
+    var seed = ((cx * 73856093) ^ (cz * 19349663)) >>> 0;
+    return function () {
+      seed ^= seed << 13; seed >>>= 0;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5; seed >>>= 0;
+      return seed / 4294967296;
+    };
+  }
+
+  function queueGen(cx, cz) {
+    var k = cKey(cx, cz);
+    if (generated[k] || genQueueSet[k]) return;
+    genQueueSet[k] = true;
+    genQueue.push(k);
+  }
+
+  function refreshGenQueue() {
+    var pcx = chunkOf(player.x), pcz = chunkOf(player.z);
+    for (var dx = -genRadius; dx <= genRadius; dx++) {
+      for (var dz = -genRadius; dz <= genRadius; dz++) {
+        queueGen(pcx + dx, pcz + dz);
+      }
+    }
+  }
+
+  function genChunk(cx, cz) {
+    var k = cKey(cx, cz);
+    if (generated[k]) return;
+    generated[k] = true;
+
+    var rand = prng(cx, cz);
+    var x0 = cx * CHUNK, z0 = cz * CHUNK;
+    var x, z, y;
+
+    for (x = x0; x < x0 + CHUNK; x++) {
+      for (z = z0; z < z0 + CHUNK; z++) {
+        if (blocks.has(blockKey(x, -3, z))) continue;
+        var t = Math.sin(z * 0.008) + Math.sin(x * 0.006);
+        var desert = t > 0.9;
+        var height = Math.max(0, Math.floor(Math.sin(x * 0.18) * Math.cos(z * 0.18) * 2));
+        for (y = -3; y <= height; y++) {
+          var ty = "stone";
+          if (y === -3) ty = "bedrock";
+          else if (y === height) ty = desert ? "sand" : "grass";
+          else if (y >= height - 2) ty = desert ? "sand" : "dirt";
+          addBlock(x, y, z, ty);
+        }
+      }
+    }
+
+    for (x = x0; x < x0 + CHUNK; x++) {
+      for (z = z0; z < z0 + CHUNK; z++) {
+        var top = null;
+        for (y = 8; y >= -3; y--) {
+          var tt = typeAt(x, y, z);
+          if (tt && tt !== "water" && tt !== "leaves") { top = y; break; }
+        }
+        if (top === null) continue;
+        var bt = typeAt(x, top, z);
+        if (bt === "stone" && rand() < 0.05) {
+          var r = rand();
+          var ore = r < 0.55 ? "coal_ore" : r < 0.8 ? "iron_ore" : r < 0.93 ? "gold_ore" : "diamond_ore";
+          removeBlock(x, top, z);
+          addBlock(x, top, z, ore);
+        } else if (bt === "grass") {
+          var rr = rand();
+          if (rr < 0.02 && !blocks.has(blockKey(x, top + 1, z))) {
+            addTree27(x, top, z);
+          } else if (rr < 0.05 && !blocks.has(blockKey(x, top + 1, z))) {
+            addBlock(x, top + 1, z, rand() < 0.5 ? "flower_red" : "tall_grass");
+          }
+        }
+      }
+    }
+
+    if (rand() < 0.25) {
+      var lx = x0 + 6 + Math.floor(rand() * (CHUNK - 12));
+      var lz = z0 + 6 + Math.floor(rand() * (CHUNK - 12));
+      for (var dx = -3; dx <= 3; dx++) {
+        for (var dz = -3; dz <= 3; dz++) {
+          if (dx * dx + dz * dz > 9) continue;
+          var wx = lx + dx, wz = lz + dz;
+          for (y = 6; y >= -1; y--) removeBlock(wx, y, wz);
+          addBlock(wx, 0, wz, "water");
+          addBlock(wx, -1, wz, "water");
+          removeBlock(wx, -2, wz);
+          addBlock(wx, -2, wz, "sand");
+        }
+      }
+    }
+
+    v2Mark(cx, cz);
+    v2Mark(cx + 1, cz); v2Mark(cx - 1, cz);
+    v2Mark(cx, cz + 1); v2Mark(cx, cz - 1);
+  }
+
+  function addTree27(x, gy, z) {
+    for (var y = 1; y <= 4; y++) addBlock(x, gy + y, z, "wood");
+    var topY = gy + 4;
+    for (var dy = 0; dy <= 2; dy++) {
+      var rad = dy === 2 ? 1 : 2;
+      for (var dx = -rad; dx <= rad; dx++) {
+        for (var dz = -rad; dz <= rad; dz++) {
+          if (dy < 2 && dx === 0 && dz === 0) continue;
+          if (dy === 2 && Math.abs(dx) + Math.abs(dz) > 1) continue;
+          addBlock(x + dx, topY + dy, z + dz, "leaves");
+        }
+      }
+    }
+  }
+
+  /* ================= individual mesh culling list ================= */
+  var indivList = [];
+
+  blocks.forEach(function (m) {
+    if (m && m.userData && IND2[m.userData.type]) indivList.push(m);
+  });
+
+  var prevAdd27 = addBlock;
+  addBlock = function (x, y, z, type) {
+    prevAdd27(x, y, z, type);
+    var m = blocks.get(blockKey(x, y, z));
+    if (!m) return;
+    if (IND2[type]) indivList.push(m);
+    v2MarkAround(x, z);
+  };
+
+  var prevRemove27 = removeBlock;
+  removeBlock = function (x, y, z) {
+    var m = blocks.get(blockKey(x, y, z));
+    if (m) m._dead27 = true;
+    prevRemove27(x, y, z);
+    v2MarkAround(x, z);
+  };
+
+  /* ================= render distance / fog ================= */
+  function applyRenderDistance() {
+    var far = S.rd * CHUNK * 0.9;
+    if (!scene.fog) scene.fog = new THREE.Fog(0x87ceeb, far * 0.4, far);
+    scene.fog.near = far * 0.4;
+    scene.fog.far = far;
+    saveS();
+  }
+
+  var settingsBox = document.getElementById("part15-settings");
+  if (settingsBox) {
+    var rdRow = document.createElement("div");
+    rdRow.id = "part27-rdrow";
+    rdRow.innerHTML =
+      '<label>Render Distance (chunks): <span id="part27-rdval"></span></label>' +
+      '<input id="part27-rd" type="range" min="1" max="5" step="1">';
+    var closeBtn = document.getElementById("part15-settings-close");
+    if (closeBtn) settingsBox.insertBefore(rdRow, closeBtn);
+    else settingsBox.appendChild(rdRow);
+
+    var rdInput = document.getElementById("part27-rd");
+    var rdVal = document.getElementById("part27-rdval");
+    rdInput.value = S.rd;
+    rdVal.textContent = S.rd;
+
+    rdInput.addEventListener("input", function () {
+      S.rd = parseInt(this.value, 10);
+      rdVal.textContent = S.rd;
+      applyRenderDistance();
+    });
+  }
+
+  applyRenderDistance();
+
+  window.addEventListener("keydown", function (e) {
+    if (e.code !== "KeyJ") return;
+    genRadius += 1;
+    refreshGenQueue();
+    var c = document.getElementById("part24-chat");
+    if (c) { c.innerText = "World expanded (radius " + genRadius + " chunks)"; c.style.opacity = "1"; }
+    e.stopImmediatePropagation();
+  }, true);
+
+  /* ================= english block names label ================= */
+  var EN_NAMES = {
+    grass: "Grass", dirt: "Dirt", stone: "Stone", cobble: "Cobblestone",
+    wood: "Wood", plank: "Plank", leaves: "Leaves", sand: "Sand",
+    glass: "Glass", water: "Water", lava: "Lava", obsidian: "Obsidian",
+    glowstone: "Glowstone", sponge: "Sponge", hay_bale: "Hay",
+    coal_ore: "Coal Ore", iron_ore: "Iron Ore", gold_ore: "Gold Ore",
+    diamond_ore: "Diamond Ore", bedrock: "Bedrock", ladder: "Ladder",
+    torch: "Torch", crafting_table: "Crafting Table", furnace: "Furnace",
+    flower_red: "Rose", flower_yellow: "Dandelion", tall_grass: "Tall Grass"
+  };
+
+  /* ================= main loop ================= */
+  var clock27 = new THREE.Clock();
+  var cullTimer = 0;
+  var genRefreshTimer = 0;
+  var labelTimer = 0;
+
+  refreshGenQueue();
+
+  function part27Loop() {
+    requestAnimationFrame(part27Loop);
+    var delta = Math.min(clock27.getDelta(), 0.05);
+    var elapsed = clock27.elapsedTime;
+
+    if (genQueue.length > 0) {
+      var k = genQueue.shift();
+      delete genQueueSet[k];
+      var parts = k.split(",");
+      genChunk(parseInt(parts[0], 10), parseInt(parts[1], 10));
+    }
+
+    if (v2DirtyCount > 0) {
+      var pcx = chunkOf(player.x), pcz = chunkOf(player.z);
+      for (var dk in v2Dirty) {
+        if (!v2Dirty[dk]) continue;
+        var pp = dk.split(",");
+        var cx = parseInt(pp[0], 10), cz = parseInt(pp[1], 10);
+        var distC = Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz));
+        if (distC > S.rd + 1) continue;
+        v2Dirty[dk] = false;
+        v2DirtyCount--;
+        v2Rebuild(cx, cz);
+        break;
+      }
+    }
+
+    cullTimer -= delta;
+    if (cullTimer <= 0) {
+      cullTimer = 0.4;
+
+      var cullR = S.rd * CHUNK + 24;
+      var cullR2 = cullR * cullR;
+
+      for (var i = 0; i < indivList.length; i++) {
+        var m = indivList[i];
+        if (!m || m._dead27 || !m.parent) continue;
+        var dx = m.position.x - player.x;
+        var dz = m.position.z - player.z;
+        var vis = (dx * dx + dz * dz) < cullR2;
+        if (m.visible !== vis) m.visible = vis;
+      }
+
+      var pcx2 = chunkOf(player.x), pcz2 = chunkOf(player.z);
+      for (var ck in v2Chunks) {
+        var cp = ck.split(",");
+        var ccx = parseInt(cp[0], 10), ccz = parseInt(cp[1], 10);
+        var near = Math.max(Math.abs(ccx - pcx2), Math.abs(ccz - pcz2)) <= S.rd;
+        var arr = v2Chunks[ck];
+        for (var a = 0; a < arr.length; a++) {
+          if (arr[a].visible !== near) arr[a].visible = near;
+        }
+      }
+    }
+
+    genRefreshTimer -= delta;
+    if (genRefreshTimer <= 0) {
+      genRefreshTimer = 1;
+      refreshGenQueue();
+    }
+
+    labelTimer -= delta;
+    if (labelTimer <= 0) {
+      labelTimer = 0.25;
+      var menu = document.getElementById("part15-menu");
+      var menuOpen = menu && menu.style.display !== "none";
+      if (menuOpen) {
+        label27.style.display = "none";
+      } else {
+        label27.style.display = "block";
+        var sel = (typeof currentBlock !== "undefined" && currentBlock) ? (EN_NAMES[currentBlock] || currentBlock) : "";
+        var tgt = "";
+        if (typeof raycastBlocks === "function") {
+          try {
+            var hits = raycastBlocks();
+            if (hits && hits.length) tgt = EN_NAMES[hits[0].object.userData.type] || hits[0].object.userData.type;
+          } catch (e) {}
+        }
+        label27.innerText = (sel ? "Holding: " + sel : "") + (tgt ? "  |  Looking: " + tgt : "");
+      }
+    }
+  }
+
+  part27Loop();
+
+  var chat27 = document.getElementById("part24-chat");
+  if (chat27) {
+    chat27.innerText = "Part 27: Big world + Render Distance + English UI + FPS boost";
+    chat27.style.opacity = "1";
+    setTimeout(function () { chat27.style.opacity = "0"; }, 5000);
+  }
+})();
+</script>
