@@ -7,6 +7,8 @@ import * as THREE from 'three';
 import { Time } from './Time.js';
 import { Input } from './Input.js';
 import { Player } from '../player/Player.js';
+import { TextureManager } from '../textures/TextureManager.js';
+import { Chunk } from '../world/Chunk.js';
 
 export class Engine {
     constructor() {
@@ -15,16 +17,19 @@ export class Engine {
 
         this.time = new Time();
         this.input = new Input(this.canvas, this.pauseScreen);
+        this.textureManager = new TextureManager();
 
         this.scene = null;
         this.camera = null;
         this.renderer = null;
         this.player = null;
+        this.chunks = [];
 
         this.updateHooks = [];
         this.tickHooks = [];
 
         this.initThree();
+        this.initWorld();
         this.initPlayer();
         this.initEvents();
     }
@@ -49,21 +54,29 @@ export class Engine {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
         this.scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        sunLight.position.set(100, 150, 50);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.75);
+        sunLight.position.set(50, 100, 50);
         this.scene.add(sunLight);
+    }
 
-        // هێڵی سەر زەوی تا زەوی ڕاستەقینە دروست دەکەین
-        const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
-        gridHelper.position.y = 0;
-        this.scene.add(gridHelper);
+    initWorld() {
+        // Spawn 4 initial chunks (2x2 grid)
+        for (let cx = 0; cx < 2; cx++) {
+            for (let cz = 0; cz < 2; cz++) {
+                const chunk = new Chunk(cx, cz, this.textureManager);
+                this.chunks.push(chunk);
+                this.scene.add(chunk.meshGroup);
+            }
+        }
     }
 
     initPlayer() {
         this.player = new Player(this.camera, this.input, this.scene);
+        // Start player standing on top of the terrain
+        this.player.position.set(8, 14, 8);
         this.addUpdateHook((delta) => this.player.update(delta));
     }
 
