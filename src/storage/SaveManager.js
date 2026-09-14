@@ -1,29 +1,22 @@
 /**
  * SaveManager.js
- * Browser LocalStorage persistence for block modifications, player state,
- * inventory arrays, and celestial day/night cycle.
+ * Safe LocalStorage persistence for world deltas and player states.
  */
 
 export class SaveManager {
     constructor(storageKey = 'minecraft_web_save') {
         this.storageKey = storageKey;
-        this.modifications = {
-            placed: [],   // Array of { x, y, z, typeId }
-            removed: []   // Array of 'x,y,z'
-        };
-        this.autoSaveInterval = 15; // Auto-save every 15 seconds
+        this.modifications = { placed: [], removed: [] };
+        this.autoSaveInterval = 15;
         this.timer = 0;
     }
 
     recordPlacement(x, y, z, typeId) {
         const key = `${x},${y},${z}`;
-        // Remove from removed list if it was previously broken
         this.modifications.removed = this.modifications.removed.filter(k => k !== key);
-
-        // Update or append to placed list
-        const existingIdx = this.modifications.placed.findIndex(b => b.x === x && b.y === y && b.z === z);
-        if (existingIdx !== -1) {
-            this.modifications.placed[existingIdx].typeId = typeId;
+        const idx = this.modifications.placed.findIndex(b => b.x === x && b.y === y && b.z === z);
+        if (idx !== -1) {
+            this.modifications.placed[idx].typeId = typeId;
         } else {
             this.modifications.placed.push({ x, y, z, typeId });
         }
@@ -31,32 +24,39 @@ export class SaveManager {
 
     recordRemoval(x, y, z) {
         const key = `${x},${y},${z}`;
-        // Remove from placed list if it was previously placed
         this.modifications.placed = this.modifications.placed.filter(b => !(b.x === x && b.y === y && b.z === z));
-
         if (!this.modifications.removed.includes(key)) {
             this.modifications.removed.push(key);
         }
     }
 
+    getPlayerCoords(player, engine) {
+        if (player && player.pos && player.pos.x !== undefined) return player.pos;
+        if (player && player.position && player.position.x !== undefined) return player.position;
+        if (player && player.camera && player.camera.position) return player.camera.position;
+        if (engine && engine.camera) return engine.camera.position;
+        return { x: 0, y: 15, z: 0 };
+    }
+
     saveGame(player, engine) {
+        const pPos = this.getPlayerCoords(player, engine);
         const saveData = {
             player: {
-                x: player.pos.x,
-                y: player.pos.y,
-                z: player.pos.z,
-                yaw: player.yaw,
-                pitch: player.pitch,
-                health: player.health,
-                hunger: player.hunger,
-                oxygen: player.oxygen
+                x: pPos.x || 0,
+                y: pPos.y || 15,
+                z: pPos.z || 0,
+                yaw: player ? player.yaw || 0 : 0,
+                pitch: player ? player.pitch || 0 : 0,
+                health: player ? player.health ?? 20 : 20,
+                hunger: player ? player.hunger ?? 20 : 20,
+                oxygen: player ? player.oxygen ?? 20 : 20
             },
             inventory: {
-                hotbar: engine.hotbarItems,
-                main: engine.mainInventory,
-                selectedHotbarIndex: engine.selectedHotbarIndex
+                hotbar: engine ? engine.hotbarItems : [],
+                main: engine ? engine.mainInventory : [],
+                selectedHotbarIndex: engine ? engine.selectedHotbarIndex : 0
             },
-            time: engine.dayTime,
+            time: engine ? engine.dayTime : 0.2,
             modifications: this.modifications
         };
 
@@ -64,7 +64,7 @@ export class SaveManager {
             localStorage.setItem(this.storageKey, JSON.stringify(saveData));
             this.showSaveNotification();
         } catch (e) {
-            console.warn('Unable to save to LocalStorage:', e);
+            console.warn('LocalStorage error:', e);
         }
     }
 
@@ -74,10 +74,11 @@ export class SaveManager {
 
         try {
             const data = JSON.parse(raw);
-
-            // 1. Restore Player State
-            if (data.player) {
-                player.pos.set(data.player.x, data.player.y, data.player.z);
+            if (data.player && player) {
+                const targetPos = player.pos || player.position || (player.camera ? player.camera.position : null);
+                if (targetPos && typeof targetPos.set === 'function') {
+                    targetPos.set(data.player.x, data.player.y, data.player.z);
+                }
                 player.yaw = data.player.yaw || 0;
                 player.pitch = data.player.pitch || 0;
                 player.health = data.player.health ?? 20;
@@ -85,8 +86,7 @@ export class SaveManager {
                 player.oxygen = data.player.oxygen ?? 20;
             }
 
-            // 2. Restore Inventory State
-            if (data.inventory) {
+            if (data.inventory && engine) {
                 if (data.inventory.hotbar) engine.hotbarItems = data.inventory.hotbar;
                 if (data.inventory.main) engine.mainInventory = data.inventory.main;
                 if (data.inventory.selectedHotbarIndex !== undefined) {
@@ -94,31 +94,24 @@ export class SaveManager {
                 }
             }
 
-            // 3. Restore Celestial Time
-            if (data.time !== undefined) {
+            if (data.time !== undefined && engine) {
                 engine.dayTime = data.time;
             }
 
-            // 4. Apply World Modifications (Deltas)
             if (data.modifications) {
                 this.modifications = data.modifications;
-
-                // Remove destroyed blocks
                 if (Array.isArray(this.modifications.removed)) {
                     this.modifications.removed.forEach(key => {
                         const [x, y, z] = key.split(',').map(Number);
                         world.removeBlock(x, y, z);
                     });
                 }
-
-                // Create placed blocks
                 if (Array.isArray(this.modifications.placed)) {
                     this.modifications.placed.forEach(b => {
                         world.createBlock(b.x, b.y, b.z, b.typeId);
                     });
                 }
             }
-
             return true;
         } catch (e) {
             console.error('Failed to parse save data:', e);
@@ -158,10 +151,5 @@ export class SaveManager {
             this.timer = 0;
             this.saveGame(player, engine);
         }
-    }
-
-    clearSave() {
-        localStorage.removeItem(this.storageKey);
-        location.reload();
     }
 }
