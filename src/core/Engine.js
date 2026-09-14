@@ -1,7 +1,7 @@
 /**
  * Engine.js
- * Master game engine coordinator with graphical 2D item icons,
- * 3x3 Crafting, Mob Manager, and Save/Load persistence.
+ * Master game engine coordinator with procedural Web Audio integration,
+ * graphical 2D item icons, 3x3 Crafting, Mob Manager, and Save/Load persistence.
  */
 
 const THREE = window.THREE;
@@ -13,6 +13,7 @@ import { Player } from '../player/Player.js';
 import { Interaction } from '../player/Interaction.js';
 import { MobManager } from '../entities/MobManager.js';
 import { SaveManager } from '../storage/SaveManager.js';
+import { SoundManager } from '../audio/SoundManager.js';
 
 export class Engine {
     constructor() {
@@ -20,6 +21,9 @@ export class Engine {
         if (this.isTouchDevice) {
             document.body.classList.add('touch-device');
         }
+
+        this.soundManager = new SoundManager();
+        this.stepTimer = 0;
 
         this.initThree();
         this.initSystems();
@@ -117,7 +121,7 @@ export class Engine {
         return this.player.pos || this.player.position || this.camera.position;
     }
 
-getItemIconHTML(blockId, size = 22) {
+    getItemIconHTML(blockId, size = 22) {
         if (blockId === null || blockId === undefined) return '';
         const def = BLOCK_DEFS[blockId];
         const name = def ? def.name : '';
@@ -165,6 +169,7 @@ getItemIconHTML(blockId, size = 22) {
                     this.mainInventory[freeSlot] = this.craftOutput2x2;
                     for (let c = 0; c < 4; c++) this.craftGrid2x2[c] = null;
                     this.checkCrafting2x2();
+                    this.soundManager.playPlace();
                     this.saveManager.saveGame(this.player, this);
                 }
             }
@@ -191,6 +196,7 @@ getItemIconHTML(blockId, size = 22) {
                     this.mainInventory[freeSlot] = this.craftOutput3x3;
                     for (let c = 0; c < 9; c++) this.craftGrid3x3[c] = null;
                     this.checkCrafting3x3();
+                    this.soundManager.playPlace();
                     this.saveManager.saveGame(this.player, this);
                 }
             }
@@ -212,7 +218,7 @@ getItemIconHTML(blockId, size = 22) {
 
         document.getElementById('btn-close-inv').addEventListener('click', () => this.closeModals());
         document.getElementById('btn-close-table').addEventListener('click', () => this.closeModals());
-        
+
         const btnInvMobile = document.getElementById('btn-inv-mobile');
         if (btnInvMobile) {
             btnInvMobile.addEventListener('touchstart', (e) => {
@@ -477,6 +483,7 @@ getItemIconHTML(blockId, size = 22) {
         const playBtn = document.getElementById('btn-play');
 
         playBtn.addEventListener('click', () => {
+            this.soundManager.initContext();
             this.isGameRunning = true;
             pauseScreen.classList.add('hidden');
             if (!this.isTouchDevice) this.canvas.requestPointerLock();
@@ -486,6 +493,7 @@ getItemIconHTML(blockId, size = 22) {
             if (!this.isTouchDevice) {
                 this.isLocked = document.pointerLockElement === this.canvas;
                 if (this.isLocked) {
+                    this.soundManager.initContext();
                     pauseScreen.classList.add('hidden');
                     this.activeModal = null;
                     document.getElementById('inventory-screen').classList.add('hidden');
@@ -509,6 +517,7 @@ getItemIconHTML(blockId, size = 22) {
         this.lastTouchY = 0;
 
         window.addEventListener('touchstart', (e) => {
+            this.soundManager.initContext();
             if (!this.isGameRunning || this.activeModal) return;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
@@ -602,6 +611,7 @@ getItemIconHTML(blockId, size = 22) {
         });
 
         window.addEventListener('mousedown', (e) => {
+            this.soundManager.initContext();
             if (!this.isLocked || this.activeModal) return;
             if (e.button === 0) this.handleAttackOrBreak();
             else if (e.button === 2) this.handlePlaceOrInteract();
@@ -624,6 +634,7 @@ getItemIconHTML(blockId, size = 22) {
             if (mobHits.length > 0) {
                 if (this.interaction) this.interaction.triggerSwing();
                 this.mobManager.hitMob(mobHits[0].object, this.getPlayerPosition(), weaponDamage);
+                this.soundManager.playHit();
                 return;
             }
         }
@@ -632,6 +643,7 @@ getItemIconHTML(blockId, size = 22) {
             const pos = this.interaction.targetHit.object.userData;
             const removedTypeId = this.interaction.breakBlock();
             if (removedTypeId !== null) {
+                this.soundManager.playBreak();
                 this.saveManager.recordRemoval(pos.x, pos.y, pos.z);
                 const freeSlot = this.mainInventory.indexOf(null);
                 if (freeSlot !== -1) {
@@ -662,6 +674,7 @@ getItemIconHTML(blockId, size = 22) {
 
             const placed = this.interaction.placeBlock(blockId, this.player);
             if (placed) {
+                this.soundManager.playPlace();
                 this.saveManager.recordPlacement(px, py, pz, blockId);
             }
         }
@@ -739,6 +752,18 @@ getItemIconHTML(blockId, size = 22) {
         if (isActive) {
             try {
                 const isMoving = this.player.update(delta, this.keys, !!this.keys['ShiftLeft'], !!this.keys['Space']);
+
+                // Footstep sound check
+                if (isMoving && Math.abs(this.player.velocity.y) < 1.0) {
+                    this.stepTimer += delta;
+                    if (this.stepTimer >= 0.34) {
+                        this.stepTimer = 0;
+                        this.soundManager.playStep();
+                    }
+                } else {
+                    this.stepTimer = 0.28;
+                }
+
                 if (this.interaction) this.interaction.update(delta, isMoving, this.player.isGrounded);
                 if (this.mobManager) this.mobManager.update(delta, this.dayTime);
                 if (this.saveManager) this.saveManager.update(delta, this.player, this);
