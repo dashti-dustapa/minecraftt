@@ -1,19 +1,24 @@
 /**
  * Constants.js
- * Global block definitions, physical constants, and tools registry.
+ * Global block definitions, physical constants, and player physics registry.
  */
 
 export const WORLD_SIZE = 30;
 export const SEA_LEVEL = 4;
 export const GRAVITY = -26.0;
-export const JUMP_VELOCITY = 8.5;
+export const PLAYER_GRAVITY = -26.0;
 
-// Player dimensions and physics constants
+// Player dimensions and physics
 export const PLAYER_HEIGHT = 1.8;
 export const PLAYER_EYE_HEIGHT = 1.62;
 export const PLAYER_RADIUS = 0.3;
+export const PLAYER_SPEED = 4.6;
 export const WALK_SPEED = 4.6;
 export const SPRINT_SPEED = 7.2;
+export const PLAYER_SPRINT_SPEED = 7.2;
+export const PLAYER_JUMP_FORCE = 8.5;
+export const JUMP_VELOCITY = 8.5;
+export const JUMP_FORCE = 8.5;
 
 export const BLOCK = {
     GRASS: 0,
