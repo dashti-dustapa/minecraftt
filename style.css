@@ -192,135 +192,135 @@ body, html {
     color: #ffffa0;
 }
 
-/* ================= INVENTORY & CRAFTING MODALS ================= */
+/* ================= MODALS (DEFAULT DISPLAY: NONE) ================= */
 #inventory-screen, #crafting-table-screen {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    background: rgba(0, 0, 0, 0.65) !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: center !important;
-    z-index: 50000 !important;
-}
-
-.mc-modal-box {
-    background: #c6c6c6 !important;
-    border: 4px solid #fff !important;
-    border-right-color: #555 !important;
-    border-bottom-color: #555 !important;
-    padding: 16px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8) !important;
-    font-family: 'Minecraft', monospace, sans-serif !important;
-    color: #3f3f3f !important;
-    user-select: none !important;
-}
-
-.modal-header {
-    width: 100% !important;
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    font-weight: bold !important;
-    font-size: 15px !important;
-    margin-bottom: 12px !important;
-    color: #2b2b2b !important;
-}
-
-.btn-close {
-    background: #c6c6c6 !important;
-    border: 2px solid #fff !important;
-    border-right-color: #555 !important;
-    border-bottom-color: #555 !important;
-    cursor: pointer !important;
-    font-size: 16px !important;
-    font-weight: bold !important;
-    padding: 0 6px !important;
-    color: #111 !important;
-}
-
-.btn-close:hover {
-    background: #d8d8d8 !important;
-}
-
-.craft-area-2x2, .craft-area-3x3 {
-    display: flex !important;
-    align-items: center !important;
-    gap: 14px !important;
-    margin-bottom: 12px !important;
-}
-
-.craft-grid-2x2 {
-    display: grid !important;
-    grid-template-columns: repeat(2, 40px) !important;
-    gap: 4px !important;
-}
-
-.craft-grid-3x3 {
-    display: grid !important;
-    grid-template-columns: repeat(3, 40px) !important;
-    gap: 4px !important;
-}
-
-.craft-arrow {
-    font-size: 24px !important;
-    font-weight: bold !important;
-    color: #555 !important;
-}
-
-.inventory-section-title {
-    width: 100% !important;
-    font-size: 13px !important;
-    font-weight: bold !important;
-    margin: 8px 0 4px 0 !important;
-    color: #2b2b2b !important;
-}
-
-.inv-grid-27 {
-    display: grid !important;
-    grid-template-columns: repeat(9, 40px) !important;
-    gap: 4px !important;
-    margin-bottom: 8px !important;
-}
-
-.inv-grid-9 {
-    display: grid !important;
-    grid-template-columns: repeat(9, 40px) !important;
-    gap: 4px !important;
-}
-
-.inv-slot {
-    width: 40px !important;
-    height: 40px !important;
-    background: #8b8b8b !important;
-    border: 2px solid #373737 !important;
-    border-right-color: #ffffff !important;
-    border-bottom-color: #ffffff !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    position: relative !important;
-    box-sizing: border-box !important;
-}
-
-.inv-slot:hover {
-    background: #a0a0a0 !important;
-}
-
-.inv-slot.craft-result {
-    width: 46px !important;
-    height: 46px !important;
-    background: #9c9c9c !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.65);
+    display: none; /* دەستپێک شاردراوەیە و قوفڵ ناکات */
+    justify-content: center;
+    align-items: center;
+    z-index: 50000;
 }
 
 .hidden {
     display: none !important;
+}
+
+.mc-modal-box {
+    background: #c6c6c6;
+    border: 4px solid #fff;
+    border-right-color: #555;
+    border-bottom-color: #555;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    font-family: 'Minecraft', monospace, sans-serif;
+    color: #3f3f3f;
+    user-select: none;
+}
+
+.modal-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 15px;
+    margin-bottom: 12px;
+    color: #2b2b2b;
+}
+
+.btn-close {
+    background: #c6c6c6;
+    border: 2px solid #fff;
+    border-right-color: #555;
+    border-bottom-color: #555;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 0 6px;
+    color: #111;
+}
+
+.btn-close:hover {
+    background: #d8d8d8;
+}
+
+.craft-area-2x2, .craft-area-3x3 {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.craft-grid-2x2 {
+    display: grid;
+    grid-template-columns: repeat(2, 40px);
+    gap: 4px;
+}
+
+.craft-grid-3x3 {
+    display: grid;
+    grid-template-columns: repeat(3, 40px);
+    gap: 4px;
+}
+
+.craft-arrow {
+    font-size: 24px;
+    font-weight: bold;
+    color: #555;
+}
+
+.inventory-section-title {
+    width: 100%;
+    font-size: 13px;
+    font-weight: bold;
+    margin: 8px 0 4px 0;
+    color: #2b2b2b;
+}
+
+.inv-grid-27 {
+    display: grid;
+    grid-template-columns: repeat(9, 40px);
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.inv-grid-9 {
+    display: grid;
+    grid-template-columns: repeat(9, 40px);
+    gap: 4px;
+}
+
+.inv-slot {
+    width: 40px;
+    height: 40px;
+    background: #8b8b8b;
+    border: 2px solid #373737;
+    border-right-color: #ffffff;
+    border-bottom-color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.inv-slot:hover {
+    background: #a0a0a0;
+}
+
+.inv-slot.craft-result {
+    width: 46px;
+    height: 46px;
+    background: #9c9c9c;
 }
 
 /* Touch Controls */
