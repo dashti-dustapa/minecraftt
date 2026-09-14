@@ -1,6 +1,7 @@
 /**
  * Engine.js
- * Master game engine coordinator with 3x3 Crafting Table, Recipes, and Tool combat bonuses.
+ * Master game engine coordinator with unified Player position compatibility,
+ * 3x3 Crafting, Mob Manager, and Save/Load persistence.
  */
 
 const THREE = window.THREE;
@@ -57,10 +58,10 @@ export class Engine {
         this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.camera.rotation.order = 'YXZ';
 
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
         this.scene.add(this.ambientLight);
 
-        this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.sunLight = new THREE.DirectionalLight(0xffffff, 0.85);
         this.scene.add(this.sunLight);
 
         this.celestialPivot = new THREE.Group();
@@ -87,19 +88,34 @@ export class Engine {
         this.textureManager = new TextureManager();
         this.world = new World(this.scene, this.textureManager);
         this.player = new Player(this.camera, this.world);
+
+        // Bridge position naming difference (pos vs position)
+        if (!this.player.pos) {
+            this.player.pos = this.player.position || this.camera.position;
+        }
+        if (!this.player.position) {
+            this.player.position = this.player.pos;
+        }
+
         this.interaction = new Interaction(this.scene, this.camera, this.world, this.textureManager);
         this.mobManager = new MobManager(this.scene, this.world, this.player);
         this.saveManager = new SaveManager();
 
         this.player.onDamage = () => {
             const flash = document.getElementById('damage-flash');
-            flash.style.opacity = '1';
-            setTimeout(() => { flash.style.opacity = '0'; }, 200);
+            if (flash) {
+                flash.style.opacity = '1';
+                setTimeout(() => { flash.style.opacity = '0'; }, 200);
+            }
         };
 
         this.player.onStatsChange = () => {
             this.renderHUD();
         };
+    }
+
+    getPlayerPosition() {
+        return this.player.pos || this.player.position || this.camera.position;
     }
 
     initInventoryAndCrafting() {
@@ -110,17 +126,14 @@ export class Engine {
         this.mainInventory[1] = BLOCK.LOG;
         this.mainInventory[2] = BLOCK.CRAFTING_TABLE;
 
-        // 2x2 Grid state
         this.craftGrid2x2 = [null, null, null, null];
         this.craftOutput2x2 = null;
 
-        // 3x3 Grid state
         this.craftGrid3x3 = new Array(9).fill(null);
         this.craftOutput3x3 = null;
 
-        this.activeModal = null; // 'inv' or 'table' or null
+        this.activeModal = null;
 
-        // Hotbar UI Clicks
         document.querySelectorAll('.hotbar-slot').forEach((slot, idx) => {
             slot.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
@@ -128,7 +141,6 @@ export class Engine {
             });
         });
 
-        // 2x2 Output Craft Click
         document.getElementById('craft-out-2x2').addEventListener('click', () => {
             if (this.craftOutput2x2 !== null) {
                 const freeSlot = this.mainInventory.indexOf(null);
@@ -141,7 +153,6 @@ export class Engine {
             }
         });
 
-        // 2x2 Slot Return Click
         document.querySelectorAll('.craft-in-2x2').forEach(slot => {
             slot.addEventListener('click', () => {
                 const idx = parseInt(slot.dataset.cslot);
@@ -156,7 +167,6 @@ export class Engine {
             });
         });
 
-        // 3x3 Output Craft Click
         document.getElementById('craft-out-3x3').addEventListener('click', () => {
             if (this.craftOutput3x3 !== null) {
                 const freeSlot = this.mainInventory.indexOf(null);
@@ -169,7 +179,6 @@ export class Engine {
             }
         });
 
-        // 3x3 Slot Return Click
         document.querySelectorAll('.craft-in-3x3').forEach(slot => {
             slot.addEventListener('click', () => {
                 const idx = parseInt(slot.dataset.tslot);
@@ -198,16 +207,11 @@ export class Engine {
         this.craftOutput2x2 = null;
         const filled = this.craftGrid2x2.filter(x => x !== null).length;
 
-        // 1 Log -> 4 Planks
         if (filled === 1 && this.craftGrid2x2.includes(BLOCK.LOG)) {
             this.craftOutput2x2 = BLOCK.PLANK;
-        }
-        // 4 Planks -> 1 Crafting Table
-        else if (filled === 4 && this.craftGrid2x2.every(x => x === BLOCK.PLANK)) {
+        } else if (filled === 4 && this.craftGrid2x2.every(x => x === BLOCK.PLANK)) {
             this.craftOutput2x2 = BLOCK.CRAFTING_TABLE;
-        }
-        // 2 Planks vertical -> 4 Sticks
-        else if (
+        } else if (
             (this.craftGrid2x2[0] === BLOCK.PLANK && this.craftGrid2x2[2] === BLOCK.PLANK && !this.craftGrid2x2[1] && !this.craftGrid2x2[3]) ||
             (this.craftGrid2x2[1] === BLOCK.PLANK && this.craftGrid2x2[3] === BLOCK.PLANK && !this.craftGrid2x2[0] && !this.craftGrid2x2[2])
         ) {
@@ -220,36 +224,27 @@ export class Engine {
     checkCrafting3x3() {
         this.craftOutput3x3 = null;
         const g = this.craftGrid3x3;
-
-        // 1 Log -> Planks
         const filled = g.filter(x => x !== null).length;
+
         if (filled === 1 && g.includes(BLOCK.LOG)) {
             this.craftOutput3x3 = BLOCK.PLANK;
-        }
-        // Sticks (2 Planks vertical)
-        else if (filled === 2 && (
+        } else if (filled === 2 && (
             (g[0] === BLOCK.PLANK && g[3] === BLOCK.PLANK) ||
             (g[1] === BLOCK.PLANK && g[4] === BLOCK.PLANK) ||
             (g[3] === BLOCK.PLANK && g[6] === BLOCK.PLANK) ||
             (g[4] === BLOCK.PLANK && g[7] === BLOCK.PLANK)
         )) {
             this.craftOutput3x3 = BLOCK.STICK;
-        }
-        // Wooden Pickaxe (3 Planks row + 2 Sticks column)
-        else if (
+        } else if (
             g[0] === BLOCK.PLANK && g[1] === BLOCK.PLANK && g[2] === BLOCK.PLANK &&
             g[4] === BLOCK.STICK && g[7] === BLOCK.STICK && filled === 5
         ) {
             this.craftOutput3x3 = BLOCK.WOOD_PICKAXE;
-        }
-        // Wooden Sword (2 Planks vertical + 1 Stick)
-        else if (
+        } else if (
             g[1] === BLOCK.PLANK && g[4] === BLOCK.PLANK && g[7] === BLOCK.STICK && filled === 3
         ) {
             this.craftOutput3x3 = BLOCK.WOOD_SWORD;
-        }
-        // Diamond Sword (2 Diamonds vertical + 1 Stick)
-        else if (
+        } else if (
             g[1] === BLOCK.DIAMOND && g[4] === BLOCK.DIAMOND && g[7] === BLOCK.STICK && filled === 3
         ) {
             this.craftOutput3x3 = BLOCK.DIAMOND_SWORD;
@@ -357,7 +352,7 @@ export class Engine {
         this.updateHeldBlock();
     }
 
-updateHeldBlock() {
+    updateHeldBlock() {
         const blockId = this.hotbarItems[this.selectedHotbarIndex];
         if (this.interaction && typeof this.interaction.setHeldItem === 'function') {
             this.interaction.setHeldItem(blockId);
@@ -402,20 +397,22 @@ updateHeldBlock() {
     renderHUD() {
         const hBar = document.getElementById('health-bar');
         hBar.innerHTML = '';
+        const hp = this.player.health ?? 20;
         for (let i = 0; i < 10; i++) {
             const hVal = (i + 1) * 2;
             const heart = document.createElement('span');
             heart.className = 'heart';
-            heart.innerText = this.player.health >= hVal ? '❤️' : (this.player.health >= hVal - 1 ? '💔' : '🖤');
+            heart.innerText = hp >= hVal ? '❤️' : (hp >= hVal - 1 ? '💔' : '🖤');
             hBar.appendChild(heart);
         }
 
         const fBar = document.getElementById('hunger-bar');
         fBar.innerHTML = '';
+        const foodVal = this.player.hunger ?? 20;
         for (let i = 0; i < 10; i++) {
             const food = document.createElement('span');
             food.className = 'food';
-            food.innerText = this.player.hunger >= (i + 1) * 2 ? '🍗' : '🦴';
+            food.innerText = foodVal >= (i + 1) * 2 ? '🍗' : '🦴';
             fBar.appendChild(food);
         }
 
@@ -423,7 +420,8 @@ updateHeldBlock() {
         bBar.innerHTML = '';
         if (this.player.headSubmerged) {
             bBar.style.display = 'flex';
-            for (let i = 0; i < Math.ceil(this.player.oxygen / 2); i++) {
+            const ox = this.player.oxygen ?? 20;
+            for (let i = 0; i < Math.ceil(ox / 2); i++) {
                 const bubble = document.createElement('span');
                 bubble.className = 'bubble';
                 bubble.innerText = '🫧';
@@ -470,7 +468,6 @@ updateHeldBlock() {
             this.player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.player.pitch));
         });
 
-        // Touch Look Controls
         this.cameraTouchId = null;
         this.lastTouchX = 0;
         this.lastTouchY = 0;
@@ -574,20 +571,20 @@ updateHeldBlock() {
         const heldDef = (heldId !== null && BLOCK_DEFS[heldId]) ? BLOCK_DEFS[heldId] : BLOCK_DEFS[0];
         const weaponDamage = heldDef.attackDamage || 4;
 
-        // Check Mob hit first
         const raycaster = new THREE.Raycaster();
         raycaster.far = 4.5;
         raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
 
-        const mobHits = raycaster.intersectObjects(this.mobManager.getHitMeshes(), false);
-        if (mobHits.length > 0) {
-            this.interaction.triggerSwing();
-            this.mobManager.hitMob(mobHits[0].object, this.player.pos, weaponDamage);
-            return;
+        if (this.mobManager) {
+            const mobHits = raycaster.intersectObjects(this.mobManager.getHitMeshes(), false);
+            if (mobHits.length > 0) {
+                if (this.interaction) this.interaction.triggerSwing();
+                this.mobManager.hitMob(mobHits[0].object, this.getPlayerPosition(), weaponDamage);
+                return;
+            }
         }
 
-        // Otherwise break block
-        if (this.interaction.targetHit) {
+        if (this.interaction && this.interaction.targetHit) {
             const pos = this.interaction.targetHit.object.userData;
             const removedTypeId = this.interaction.breakBlock();
             if (removedTypeId !== null) {
@@ -599,8 +596,7 @@ updateHeldBlock() {
     }
 
     handlePlaceOrInteract() {
-        // 1. If clicking on Crafting Table block -> Open 3x3 Table
-        if (this.interaction.targetHit) {
+        if (this.interaction && this.interaction.targetHit) {
             const hitBlockData = this.interaction.targetHit.object.userData;
             if (hitBlockData.typeId === BLOCK.CRAFTING_TABLE) {
                 this.openCraftingTable3x3();
@@ -608,11 +604,10 @@ updateHeldBlock() {
             }
         }
 
-        // 2. Otherwise place block
         const blockId = this.hotbarItems[this.selectedHotbarIndex];
-        if (blockId !== null && this.interaction.targetHit) {
+        if (blockId !== null && this.interaction && this.interaction.targetHit) {
             const bDef = BLOCK_DEFS[blockId];
-            if (bDef && bDef.isItem) return; // Don't place tools/sticks as blocks
+            if (bDef && bDef.isItem) return;
 
             const normal = this.interaction.targetHit.face.normal;
             const px = this.interaction.targetHit.object.userData.x + Math.round(normal.x);
@@ -632,12 +627,18 @@ updateHeldBlock() {
         const delta = Math.min((time - this.prevTime) / 1000, 0.1);
         this.prevTime = time;
 
+        const playerPos = this.getPlayerPosition();
+
+        // Day/Night celestial cycle
         this.dayTime = (this.dayTime + delta * 0.005) % 1.0;
         const sunAngle = this.dayTime * Math.PI * 2;
         this.celestialPivot.rotation.z = sunAngle;
         const sunHeight = Math.sin(sunAngle);
 
-        document.getElementById('underwater-tint').style.display = this.player.headSubmerged ? 'block' : 'none';
+        const underTint = document.getElementById('underwater-tint');
+        if (underTint) {
+            underTint.style.display = this.player.headSubmerged ? 'block' : 'none';
+        }
 
         if (this.player.headSubmerged) {
             this.scene.background.lerp(this.skyColorWater, delta * 4);
@@ -650,33 +651,39 @@ updateHeldBlock() {
                 this.scene.fog.color.lerp(this.skyColorDay, delta * 3);
                 this.ambientLight.intensity = 0.65;
                 this.sunLight.intensity = 0.85;
-                document.getElementById('debug-time').innerText = "Time: Day";
+                const dbgTime = document.getElementById('debug-time');
+                if (dbgTime) dbgTime.innerText = "Time: Day";
             } else if (sunHeight > -0.15) {
                 this.scene.background.lerp(this.skyColorSunset, delta * 3);
                 this.scene.fog.color.lerp(this.skyColorSunset, delta * 3);
                 this.ambientLight.intensity = 0.45;
                 this.sunLight.intensity = 0.45;
-                document.getElementById('debug-time').innerText = "Time: Sunset";
+                const dbgTime = document.getElementById('debug-time');
+                if (dbgTime) dbgTime.innerText = "Time: Sunset";
             } else {
                 this.scene.background.lerp(this.skyColorNight, delta * 3);
                 this.scene.fog.color.lerp(this.skyColorNight, delta * 3);
                 this.ambientLight.intensity = 0.22;
                 this.sunLight.intensity = 0.12;
-                document.getElementById('debug-time').innerText = "Time: Night (Monsters Active)";
+                const dbgTime = document.getElementById('debug-time');
+                if (dbgTime) dbgTime.innerText = "Time: Night (Monsters Active)";
             }
         }
 
-        this.celestialPivot.position.copy(this.player.pos);
-        this.sunLight.position.set(
-            this.player.pos.x - Math.sin(sunAngle) * 60,
-            this.player.pos.y + Math.cos(sunAngle) * 60,
-            this.player.pos.z + 40
-        );
+        if (playerPos) {
+            this.celestialPivot.position.copy(playerPos);
+            this.sunLight.position.set(
+                playerPos.x - Math.sin(sunAngle) * 60,
+                playerPos.y + Math.cos(sunAngle) * 60,
+                playerPos.z + 40
+            );
+        }
 
         this.frameCount++;
         this.fpsTimer += delta;
         if (this.fpsTimer >= 1.0) {
-            document.getElementById('debug-fps').innerText = `FPS: ${this.frameCount}`;
+            const dbgFps = document.getElementById('debug-fps');
+            if (dbgFps) dbgFps.innerText = `FPS: ${this.frameCount}`;
             this.frameCount = 0;
             this.fpsTimer = 0;
         }
@@ -684,17 +691,26 @@ updateHeldBlock() {
         const isActive = this.isTouchDevice ? (this.isGameRunning && !this.activeModal) : (this.isLocked && !this.activeModal);
 
         if (isActive) {
-            const isMoving = this.player.update(delta, this.keys, !!this.keys['ShiftLeft'], !!this.keys['Space']);
-            this.interaction.update(delta, isMoving, this.player.isGrounded);
-            this.mobManager.update(delta, this.dayTime);
-            this.saveManager.update(delta, this.player, this);
-        } else {
+            try {
+                const isMoving = this.player.update(delta, this.keys, !!this.keys['ShiftLeft'], !!this.keys['Space']);
+                if (this.interaction) this.interaction.update(delta, isMoving, this.player.isGrounded);
+                if (this.mobManager) this.mobManager.update(delta, this.dayTime);
+                if (this.saveManager) this.saveManager.update(delta, this.player, this);
+            } catch (err) {
+                console.warn('Physics loop error:', err);
+            }
+        } else if (this.interaction) {
             this.interaction.selectionBox.visible = false;
         }
 
-        document.getElementById('debug-pos').innerText =
-            `XYZ: ${this.player.pos.x.toFixed(1)} / ${this.player.pos.y.toFixed(1)} / ${this.player.pos.z.toFixed(1)}`;
+        if (playerPos) {
+            const dbgPos = document.getElementById('debug-pos');
+            if (dbgPos) {
+                dbgPos.innerText = `XYZ: ${playerPos.x.toFixed(1)} / ${playerPos.y.toFixed(1)} / ${playerPos.z.toFixed(1)}`;
+            }
+        }
 
+        // Camera must always render
         this.renderer.render(this.scene, this.camera);
     }
 }
