@@ -1,23 +1,18 @@
 /**
  * SoundManager.js
- * Audible procedural audio engine for footsteps, block breaking,
- * block placing, and combat hits using Web Audio API.
+ * Reliable Web Audio synthesizer for footsteps, block breaks, places, and hits.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
-        this.isUnlocked = false;
 
-        // Auto-unlock audio context on ANY user interaction
+        // Auto-resume audio on first user touch or click
         const unlock = () => {
-            this.initContext();
-            if (this.ctx && this.ctx.state === 'running') {
-                this.isUnlocked = true;
-                window.removeEventListener('pointerdown', unlock);
-                window.removeEventListener('keydown', unlock);
-                window.removeEventListener('click', unlock);
-            }
+            this.ensureContext();
+            window.removeEventListener('pointerdown', unlock);
+            window.removeEventListener('keydown', unlock);
+            window.removeEventListener('click', unlock);
         };
 
         window.addEventListener('pointerdown', unlock);
@@ -25,133 +20,130 @@ export class SoundManager {
         window.addEventListener('click', unlock);
     }
 
-    initContext() {
-        try {
-            if (!this.ctx) {
-                const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                if (AudioCtx) {
-                    this.ctx = new AudioCtx();
-                }
+    ensureContext() {
+        if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                this.ctx = new AudioCtx();
             }
-            if (this.ctx && this.ctx.state === 'suspended') {
-                this.ctx.resume();
-            }
-        } catch (e) {
-            console.warn('Web Audio initialization error:', e);
         }
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+        return this.ctx;
     }
 
     playStep() {
-        this.initContext();
-        if (!this.ctx || this.ctx.state !== 'running') return;
+        const ctx = this.ensureContext();
+        if (!ctx) return;
 
-        const now = this.ctx.currentTime;
+        const now = ctx.currentTime;
 
-        // Crisp grass crunchy noise burst
-        const bufferSize = Math.floor(this.ctx.sampleRate * 0.06);
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        // Crisp crunchy footstep burst
+        const bufferSize = Math.floor(ctx.sampleRate * 0.08);
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
         }
 
-        const noise = this.ctx.createBufferSource();
+        const noise = ctx.createBufferSource();
         noise.buffer = buffer;
 
-        const filter = this.ctx.createBiquadFilter();
+        const filter = ctx.createBiquadFilter();
         filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(850, now);
-        filter.Q.setValueAtTime(2.0, now);
+        filter.frequency.setValueAtTime(900, now);
+        filter.Q.setValueAtTime(1.8, now);
 
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.45, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
 
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(ctx.destination);
 
         noise.start(now);
     }
 
     playBreak() {
-        this.initContext();
-        if (!this.ctx || this.ctx.state !== 'running') return;
+        const ctx = this.ensureContext();
+        if (!ctx) return;
 
-        const now = this.ctx.currentTime;
+        const now = ctx.currentTime;
 
         // Punchy block break crack
-        const bufferSize = Math.floor(this.ctx.sampleRate * 0.12);
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const bufferSize = Math.floor(ctx.sampleRate * 0.14);
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
             data[i] = Math.random() * 2 - 1;
         }
 
-        const noise = this.ctx.createBufferSource();
+        const noise = ctx.createBufferSource();
         noise.buffer = buffer;
 
-        const filter = this.ctx.createBiquadFilter();
+        const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1400, now);
-        filter.frequency.exponentialRampToValueAtTime(200, now + 0.12);
+        filter.frequency.setValueAtTime(1600, now);
+        filter.frequency.exponentialRampToValueAtTime(250, now + 0.14);
 
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.6, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.7, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
 
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(ctx.destination);
 
         noise.start(now);
     }
 
     playPlace() {
-        this.initContext();
-        if (!this.ctx || this.ctx.state !== 'running') return;
+        const ctx = this.ensureContext();
+        if (!ctx) return;
 
-        const now = this.ctx.currentTime;
+        const now = ctx.currentTime;
 
-        // Deep woody pop tone for placing blocks
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+        // Block place sound
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
 
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+        osc.frequency.setValueAtTime(460, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.1);
 
-        gain.gain.setValueAtTime(0.5, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
 
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(ctx.destination);
 
         osc.start(now);
-        osc.stop(now + 0.08);
+        osc.stop(now + 0.1);
     }
 
     playHit() {
-        this.initContext();
-        if (!this.ctx || this.ctx.state !== 'running') return;
+        const ctx = this.ensureContext();
+        if (!ctx) return;
 
-        const now = this.ctx.currentTime;
+        const now = ctx.currentTime;
 
-        // Sharp hit impact tone
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+        // Punchy impact sound
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
 
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(260, now);
-        osc.frequency.exponentialRampToValueAtTime(60, now + 0.14);
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(70, now + 0.15);
 
-        gain.gain.setValueAtTime(0.55, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+        gain.gain.setValueAtTime(0.65, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
 
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(ctx.destination);
 
         osc.start(now);
-        osc.stop(now + 0.14);
+        osc.stop(now + 0.15);
     }
 }
