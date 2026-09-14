@@ -117,15 +117,22 @@ export class Engine {
         return this.player.pos || this.player.position || this.camera.position;
     }
 
-    getItemIconHTML(blockId, size = 26) {
+getItemIconHTML(blockId, size = 22) {
         if (blockId === null || blockId === undefined) return '';
+        const def = BLOCK_DEFS[blockId];
+        const name = def ? def.name : '';
         if (this.textureManager && typeof this.textureManager.getItemIcon === 'function') {
             const iconUrl = this.textureManager.getItemIcon(blockId);
             if (iconUrl) {
-                return `<img src="${iconUrl}" style="width:${size}px;height:${size}px;image-rendering:pixelated;pointer-events:none;display:block;margin:auto;">`;
+                return `
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%;">
+                        <img src="${iconUrl}" style="width:${size}px;height:${size}px;image-rendering:pixelated;pointer-events:none;">
+                        <span style="font-size:8px; color:#fff; text-shadow:1px 1px #000; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:90%;">${name}</span>
+                    </div>
+                `;
             }
         }
-        return (BLOCK_DEFS[blockId] ? BLOCK_DEFS[blockId].name.split(' ')[0] : '');
+        return `<span style="font-size:9px; color:#fff;">${name}</span>`;
     }
 
     initInventoryAndCrafting() {
