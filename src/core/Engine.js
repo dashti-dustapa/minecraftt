@@ -1,6 +1,6 @@
 /**
  * Engine.js
- * Master game engine coordinator with Mob integration.
+ * Master game engine coordinator with Mob and Save/Load integration.
  */
 
 const THREE = window.THREE;
@@ -11,6 +11,7 @@ import { World } from '../world/World.js';
 import { Player } from '../player/Player.js';
 import { Interaction } from '../player/Interaction.js';
 import { MobManager } from '../entities/MobManager.js';
+import { SaveManager } from '../storage/SaveManager.js';
 
 export class Engine {
     constructor() {
@@ -24,6 +25,11 @@ export class Engine {
         this.initInventory();
         this.initInputs();
         this.initHUD();
+
+        // Restore game from LocalStorage
+        this.saveManager.loadGame(this.world, this.player, this);
+        this.syncHotbarHUD();
+        this.renderHUD();
 
         this.prevTime = performance.now();
         this.frameCount = 0;
@@ -84,6 +90,7 @@ export class Engine {
         this.player = new Player(this.camera, this.world);
         this.interaction = new Interaction(this.scene, this.camera, this.world, this.textureManager);
         this.mobManager = new MobManager(this.scene, this.world, this.player);
+        this.saveManager = new SaveManager();
 
         this.player.onDamage = () => {
             const flash = document.getElementById('damage-flash');
@@ -122,6 +129,7 @@ export class Engine {
                     this.mainInventory[freeSlot] = this.craftOutput;
                     for (let c = 0; c < 4; c++) this.craftGrid[c] = null;
                     this.checkCraftingRecipe();
+                    this.saveManager.saveGame(this.player, this);
                 }
             }
         });
@@ -251,6 +259,7 @@ export class Engine {
         } else {
             invScreen.classList.add('hidden');
             if (!this.isTouchDevice) this.canvas.requestPointerLock();
+            this.saveManager.saveGame(this.player, this);
         }
     }
 
@@ -316,6 +325,7 @@ export class Engine {
                     document.getElementById('inventory-screen').classList.add('hidden');
                 } else if (!this.isInventoryOpen) {
                     pauseScreen.classList.remove('hidden');
+                    this.saveManager.saveGame(this.player, this);
                 }
             }
         });
@@ -422,7 +432,6 @@ export class Engine {
     }
 
     handleAttackOrBreak() {
-        // Raycast to check if player hits a mob first
         const raycaster = new THREE.Raycaster();
         raycaster.far = 4.5;
         raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
@@ -434,18 +443,29 @@ export class Engine {
             return;
         }
 
-        // Otherwise break regular block
-        const removedTypeId = this.interaction.breakBlock();
-        if (removedTypeId !== null) {
-            const freeSlot = this.mainInventory.indexOf(null);
-            if (freeSlot !== -1) this.mainInventory[freeSlot] = removedTypeId;
+        if (this.interaction.targetHit) {
+            const pos = this.interaction.targetHit.object.userData;
+            const removedTypeId = this.interaction.breakBlock();
+            if (removedTypeId !== null) {
+                this.saveManager.recordRemoval(pos.x, pos.y, pos.z);
+                const freeSlot = this.mainInventory.indexOf(null);
+                if (freeSlot !== -1) this.mainInventory[freeSlot] = removedTypeId;
+            }
         }
     }
 
     handlePlace() {
         const blockId = this.hotbarItems[this.selectedHotbarIndex];
-        if (blockId !== null) {
-            this.interaction.placeBlock(blockId, this.player);
+        if (blockId !== null && this.interaction.targetHit) {
+            const normal = this.interaction.targetHit.face.normal;
+            const px = this.interaction.targetHit.object.userData.x + Math.round(normal.x);
+            const py = this.interaction.targetHit.object.userData.y + Math.round(normal.y);
+            const pz = this.interaction.targetHit.object.userData.z + Math.round(normal.z);
+
+            const placed = this.interaction.placeBlock(blockId, this.player);
+            if (placed) {
+                this.saveManager.recordPlacement(px, py, pz, blockId);
+            }
         }
     }
 
@@ -510,6 +530,7 @@ export class Engine {
             const isMoving = this.player.update(delta, this.keys, !!this.keys['ShiftLeft'], !!this.keys['Space']);
             this.interaction.update(delta, isMoving, this.player.isGrounded);
             this.mobManager.update(delta, this.dayTime);
+            this.saveManager.update(delta, this.player, this);
         } else {
             this.interaction.selectionBox.visible = false;
         }
