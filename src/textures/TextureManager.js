@@ -1,7 +1,7 @@
 /**
  * TextureManager.js
  * Procedural 16x16 pixel textures, 3D block materials,
- * and 2D UI item icon generators for Inventory/Hotbar.
+ * and 2D UI item icon generators with text labels for Inventory/Hotbar.
  */
 
 import * as THREE from 'three';
@@ -192,28 +192,27 @@ export class TextureManager {
     }
 
     initItemIcons() {
-        // Generates crisp 2D Data-URLs for inventory slots
         const makeIcon = (drawFn) => this.createPixelCanvas(drawFn).toDataURL();
 
-        this.itemIcons[0] = makeIcon(ctx => { // Grass
-            ctx.fillStyle = '#866043'; ctx.fillRect(1, 6, 14, 9);
-            ctx.fillStyle = '#5b8c32'; ctx.fillRect(1, 1, 14, 5);
+        this.itemIcons[0] = makeIcon(ctx => { // Grass Block
+            ctx.fillStyle = '#866043'; ctx.fillRect(2, 6, 12, 9);
+            ctx.fillStyle = '#5b8c32'; ctx.fillRect(2, 2, 12, 5);
         });
         this.itemIcons[1] = makeIcon(ctx => { // Dirt
-            ctx.fillStyle = '#866043'; ctx.fillRect(1, 1, 14, 14);
-            ctx.fillStyle = '#68482f'; ctx.fillRect(3, 4, 3, 3); ctx.fillRect(9, 8, 3, 3);
+            ctx.fillStyle = '#866043'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#68482f'; ctx.fillRect(4, 4, 3, 3); ctx.fillRect(9, 9, 3, 3);
         });
         this.itemIcons[2] = makeIcon(ctx => { // Stone
-            ctx.fillStyle = '#787878'; ctx.fillRect(1, 1, 14, 14);
-            ctx.fillStyle = '#5e5e5e'; ctx.fillRect(4, 3, 4, 4); ctx.fillRect(8, 9, 4, 4);
+            ctx.fillStyle = '#787878'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#5e5e5e'; ctx.fillRect(4, 4, 4, 3); ctx.fillRect(9, 9, 3, 4);
         });
-        this.itemIcons[3] = makeIcon(ctx => { // Cobble
-            ctx.fillStyle = '#6c6c6c'; ctx.fillRect(1, 1, 14, 14);
-            ctx.fillStyle = '#3a3a3a'; ctx.strokeRect(2, 2, 12, 12);
+        this.itemIcons[3] = makeIcon(ctx => { // Cobblestone
+            ctx.fillStyle = '#6c6c6c'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#3a3a3a'; ctx.strokeRect(3, 3, 10, 10);
         });
-        this.itemIcons[4] = makeIcon(ctx => { // Planks
-            ctx.fillStyle = '#9c7849'; ctx.fillRect(1, 1, 14, 14);
-            ctx.fillStyle = '#6b4f2c'; ctx.fillRect(1, 5, 14, 1); ctx.fillRect(1, 10, 14, 1);
+        this.itemIcons[4] = makeIcon(ctx => { // Oak Planks
+            ctx.fillStyle = '#9c7849'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#6b4f2c'; ctx.fillRect(2, 6, 12, 1); ctx.fillRect(2, 11, 12, 1);
         });
         this.itemIcons[5] = makeIcon(ctx => { // Torch
             ctx.fillStyle = '#ffaa00'; ctx.fillRect(6, 2, 4, 4);
@@ -225,21 +224,21 @@ export class TextureManager {
             ctx.fillStyle = '#e8f7ff'; ctx.fillRect(4, 4, 3, 3);
         });
         this.itemIcons[7] = makeIcon(ctx => { // Water
-            ctx.fillStyle = '#2e5ec4'; ctx.fillRect(2, 3, 12, 10);
-            ctx.fillStyle = '#5684e8'; ctx.fillRect(4, 5, 4, 2);
+            ctx.fillStyle = '#2e5ec4'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#5684e8'; ctx.fillRect(4, 5, 5, 2);
         });
         this.itemIcons[8] = makeIcon(ctx => { // Diamond Ore
-            ctx.fillStyle = '#787878'; ctx.fillRect(1, 1, 14, 14);
-            ctx.fillStyle = '#4cedd9'; ctx.fillRect(4, 4, 3, 3); ctx.fillRect(9, 8, 4, 4);
+            ctx.fillStyle = '#787878'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#4cedd9'; ctx.fillRect(4, 5, 3, 3); ctx.fillRect(9, 8, 3, 3);
         });
         this.itemIcons[9] = makeIcon(ctx => { // Oak Log
-            ctx.fillStyle = '#6d5332'; ctx.fillRect(2, 1, 12, 14);
-            ctx.fillStyle = '#8f6f47'; ctx.fillRect(4, 1, 8, 3);
+            ctx.fillStyle = '#6d5332'; ctx.fillRect(3, 2, 10, 12);
+            ctx.fillStyle = '#8f6f47'; ctx.fillRect(5, 2, 6, 3);
         });
         this.itemIcons[10] = makeIcon(ctx => { // Crafting Table
-            ctx.fillStyle = '#9c7849'; ctx.fillRect(1, 1, 14, 14);
-            ctx.fillStyle = '#5c4028'; ctx.strokeRect(2, 2, 12, 12);
-            ctx.fillStyle = '#26150a'; ctx.fillRect(4, 4, 3, 3);
+            ctx.fillStyle = '#9c7849'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#5c4028'; ctx.strokeRect(3, 3, 10, 10);
+            ctx.fillStyle = '#3a2412'; ctx.fillRect(5, 5, 2, 6);
         });
         this.itemIcons[11] = makeIcon(ctx => { // Stick
             ctx.fillStyle = '#6b4f2c';
