@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Minecraft Web 3D</title>
     <link rel="stylesheet" href="style.css">
 
-    <!-- Three.js Library & ES Module Map -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Three.js ES Module Mapping -->
     <script type="importmap">
     {
         "imports": {
@@ -25,7 +24,7 @@
     <div id="underwater-tint"></div>
     <div id="crosshair">+</div>
 
-    <!-- Debug Telemetry -->
+    <!-- Telemetry -->
     <div id="debug-info">
         <div id="debug-fps">FPS: 0</div>
         <div id="debug-pos">XYZ: 0.0 / 0.0 / 0.0</div>
@@ -33,7 +32,7 @@
         <div id="debug-time">Time: Day</div>
     </div>
 
-    <!-- HUD Bars -->
+    <!-- HUD (Health, Hunger, Oxygen, and Hotbar) -->
     <div id="hud-container">
         <div id="status-bars">
             <div id="health-bar"></div>
@@ -41,7 +40,7 @@
             <div id="hunger-bar"></div>
         </div>
 
-        <!-- Hotbar (9 Slots) -->
+        <!-- Hotbar (9 Action Slots) -->
         <div id="hotbar">
             <div class="hotbar-slot active" data-slot="0"></div>
             <div class="hotbar-slot" data-slot="1"></div>
@@ -55,14 +54,17 @@
         </div>
     </div>
 
-    <!-- Original Start / Pause Screen -->
+    <!-- Start / Pause Menu (Matches both btn-play and btn-singleplayer) -->
     <div id="pause-screen">
-        <h1>Minecraft Web</h1>
-        <p>Click Play to start</p>
-        <button id="btn-play">Play</button>
+        <div class="menu-box">
+            <h1>MINECRAFT</h1>
+            <p>Click Play to Enter World</p>
+            <button id="btn-play" class="mc-btn">Play</button>
+            <button id="btn-singleplayer" class="mc-btn" style="display:none;">Singleplayer</button>
+        </div>
     </div>
 
-    <!-- 2x2 Survival Inventory Modal -->
+    <!-- 2x2 Crafting Inventory Modal -->
     <div id="inventory-screen" class="hidden">
         <div class="mc-modal-box">
             <div class="modal-header">
@@ -113,7 +115,7 @@
         </div>
     </div>
 
-    <!-- Touch / Mobile Controls -->
+    <!-- Mobile Touch Controls -->
     <div id="mobile-controls">
         <div id="dpad">
             <button id="btn-up" class="touch-btn">&uarr;</button>
@@ -131,11 +133,15 @@
         </div>
     </div>
 
-    <!-- Application Initialization -->
+    <!-- Module Engine Bootstrapper -->
     <script type="module">
         import { Engine } from './src/core/Engine.js';
         window.addEventListener('DOMContentLoaded', () => {
-            window.gameEngine = new Engine();
+            try {
+                window.gameEngine = new Engine();
+            } catch (err) {
+                console.error("Critical Engine Launch Error:", err);
+            }
         });
     </script>
 </body>
