@@ -1,7 +1,7 @@
 /**
  * Player.js
- * First-person kinematic controller with full 3D Voxel AABB Collision,
- * formal death states, camera death tilt, and respawn functionality.
+ * First-person controller with guaranteed death state handling,
+ * health clamping, and respawn support.
  */
 
 import * as THREE from 'three';
@@ -53,11 +53,27 @@ export class Player {
         if (typeof this.onDamage === 'function') this.onDamage();
         if (typeof this.onStatsChange === 'function') this.onStatsChange();
 
+        // Check fatal death immediately
         if (this.health <= 0) {
-            this.isDead = true;
-            if (typeof this.onDeath === 'function') {
-                this.onDeath();
-            }
+            this.triggerDeath();
+        }
+    }
+
+    triggerDeath() {
+        this.isDead = true;
+        this.health = 0;
+
+        // Direct fallback: Show death screen even if onDeath wasn't assigned
+        const deathEl = document.getElementById('death-screen');
+        if (deathEl) {
+            deathEl.style.display = 'flex';
+        }
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+
+        if (typeof this.onDeath === 'function') {
+            this.onDeath();
         }
     }
 
@@ -70,6 +86,9 @@ export class Player {
         this.pos.set(0, 12, 0);
         this.velocity.set(0, 0, 0);
         this.pitch = 0;
+
+        const deathEl = document.getElementById('death-screen');
+        if (deathEl) deathEl.style.display = 'none';
 
         if (typeof this.onStatsChange === 'function') this.onStatsChange();
     }
@@ -161,10 +180,9 @@ export class Player {
 
     update(delta, keys, isSprinting, isJumping) {
         if (this.isDead) {
-            // Freeze movement and show death tilt
             this.camera.rotation.set(0, 0, 0);
             this.camera.rotation.y = this.yaw;
-            this.camera.rotation.z = 0.55; // Red screen fall tilt
+            this.camera.rotation.z = 0.55;
             return false;
         }
 
