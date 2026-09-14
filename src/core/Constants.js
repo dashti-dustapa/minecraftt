@@ -8,6 +8,13 @@ export const SEA_LEVEL = 4;
 export const GRAVITY = -26.0;
 export const JUMP_VELOCITY = 8.5;
 
+// Player dimensions and physics constants
+export const PLAYER_HEIGHT = 1.8;
+export const PLAYER_EYE_HEIGHT = 1.62;
+export const PLAYER_RADIUS = 0.3;
+export const WALK_SPEED = 4.6;
+export const SPRINT_SPEED = 7.2;
+
 export const BLOCK = {
     GRASS: 0,
     DIRT: 1,
