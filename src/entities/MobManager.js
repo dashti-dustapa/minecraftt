@@ -316,9 +316,8 @@ export class MobManager {
                 mob.group.position.x += forward.x * mob.moveSpeed * delta;
                 mob.group.position.z += forward.z * mob.moveSpeed * delta;
 
-                mob.group.position.x = Math.max(-14, Math.min(14, mob.group.position.x));
-                mob.group.position.z = Math.max(-14, Math.min(14, mob.group.position.z));
-
+mob.group.position.x = Math.max(-42, Math.min(42, mob.group.position.x));
+mob.group.position.z = Math.max(-42, Math.min(42, mob.group.position.z));
                 mob.walkTimer += delta * 7;
                 const swing = Math.sin(mob.walkTimer) * 0.45;
                 mob.legs[0].rotation.x = swing;
