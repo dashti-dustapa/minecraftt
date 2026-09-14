@@ -63,7 +63,8 @@ export const BLOCK = {
     STICK: 11,
     WOOD_PICKAXE: 12,
     WOOD_SWORD: 13,
-    DIAMOND_SWORD: 14
+    DIAMOND_SWORD: 14,
+    LEAVES: 15
 };
 
 // Comprehensive Block Definitions
@@ -82,7 +83,8 @@ export const BLOCK_DEFS = [
     { id: 11, name: 'Stick', solid: false, isTorch: false, isWater: false, isItem: true, attackDamage: 5 },
     { id: 12, name: 'Wooden Pickaxe', solid: false, isTorch: false, isWater: false, isItem: true, attackDamage: 6 },
     { id: 13, name: 'Wooden Sword', solid: false, isTorch: false, isWater: false, isItem: true, attackDamage: 9 },
-    { id: 14, name: 'Diamond Sword', solid: false, isTorch: false, isWater: false, isItem: true, attackDamage: 16 }
+    { id: 14, name: 'Diamond Sword', solid: false, isTorch: false, isWater: false, isItem: true, attackDamage: 16 },
+    { id: 15, name: 'Oak Leaves', solid: true, isTorch: false, isWater: false, isItem: false, attackDamage: 4 }
 ];
 
 export const BLOCK_TYPES = BLOCK_DEFS;
