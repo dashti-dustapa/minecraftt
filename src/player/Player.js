@@ -1,7 +1,7 @@
 /**
  * Player.js
- * First-person kinematic controller with robust keyboard input handling,
- * gravity, jumping, and camera tracking.
+ * First-person kinematic controller with full 3D Voxel AABB Collision,
+ * gravity, stepping, jumping, and camera synchronization.
  */
 
 import * as THREE from 'three';
@@ -20,8 +20,8 @@ export class Player {
         this.camera = camera;
         this.world = world;
 
-        // Position & Coordinates
-        this.pos = new THREE.Vector3(0, 16, 0);
+        // Position & Dimensions
+        this.pos = new THREE.Vector3(0, 18, 0);
         this.position = this.pos;
         this.velocity = new THREE.Vector3(0, 0, 0);
 
@@ -52,15 +52,103 @@ export class Player {
         return !!keys[code];
     }
 
+    isSolidBlock(x, y, z) {
+        if (!this.world) return false;
+        const block = this.world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
+        // Block is solid if exists and not water/torch/empty
+        if (block === null || block === undefined) return false;
+        if (typeof block === 'object') {
+            return block.solid !== false;
+        }
+        // If block is an ID number (water=7, torch=5 are non-solid)
+        return block !== 7 && block !== 5;
+    }
+
+    collideWithWorld(displacement) {
+        const r = this.radius;
+        const p = this.pos;
+
+        // 1. Resolve X Axis Collision
+        p.x += displacement.x;
+        const minY = p.y - this.eyeHeight + 0.05;
+        const maxY = p.y - this.eyeHeight + this.height - 0.05;
+
+        for (let y = Math.floor(minY); y <= Math.floor(maxY); y++) {
+            for (let z = Math.floor(p.z - r); z <= Math.floor(p.z + r); z++) {
+                if (displacement.x > 0) {
+                    const blockX = Math.floor(p.x + r);
+                    if (this.isSolidBlock(blockX, y, z)) {
+                        p.x = blockX - r - 0.001;
+                        this.velocity.x = 0;
+                    }
+                } else if (displacement.x < 0) {
+                    const blockX = Math.floor(p.x - r);
+                    if (this.isSolidBlock(blockX, y, z)) {
+                        p.x = blockX + 1 + r + 0.001;
+                        this.velocity.x = 0;
+                    }
+                }
+            }
+        }
+
+        // 2. Resolve Z Axis Collision
+        p.z += displacement.z;
+        for (let y = Math.floor(minY); y <= Math.floor(maxY); y++) {
+            for (let x = Math.floor(p.x - r); x <= Math.floor(p.x + r); x++) {
+                if (displacement.z > 0) {
+                    const blockZ = Math.floor(p.z + r);
+                    if (this.isSolidBlock(x, y, blockZ)) {
+                        p.z = blockZ - r - 0.001;
+                        this.velocity.z = 0;
+                    }
+                } else if (displacement.z < 0) {
+                    const blockZ = Math.floor(p.z - r);
+                    if (this.isSolidBlock(x, y, blockZ)) {
+                        p.z = blockZ + 1 + r + 0.001;
+                        this.velocity.z = 0;
+                    }
+                }
+            }
+        }
+
+        // 3. Resolve Y Axis Collision (Ground / Ceiling)
+        p.y += displacement.y;
+        this.isGrounded = false;
+
+        const currentFeetY = p.y - this.eyeHeight;
+        const currentHeadY = p.y - this.eyeHeight + this.height;
+
+        for (let x = Math.floor(p.x - r); x <= Math.floor(p.x + r); x++) {
+            for (let z = Math.floor(p.z - r); z <= Math.floor(p.z + r); z++) {
+                // Check ceiling hit
+                if (displacement.y > 0) {
+                    const blockY = Math.floor(currentHeadY);
+                    if (this.isSolidBlock(x, blockY, z)) {
+                        p.y = blockY - (this.height - this.eyeHeight) - 0.001;
+                        this.velocity.y = 0;
+                    }
+                }
+                // Check landing on ground
+                else if (displacement.y < 0) {
+                    const blockY = Math.floor(currentFeetY);
+                    if (this.isSolidBlock(x, blockY, z)) {
+                        p.y = blockY + 1 + this.eyeHeight;
+                        this.velocity.y = 0;
+                        this.isGrounded = true;
+                    }
+                }
+            }
+        }
+    }
+
     update(delta, keys, isSprinting, isJumping) {
-        // 1. Sync rotation with camera
+        // Sync rotation with camera
         this.camera.rotation.set(0, 0, 0);
         this.camera.rotation.y = this.yaw;
         this.camera.rotation.x = this.pitch;
 
-        // 2. Read movement inputs (compatible with object or map)
+        // Handle WASD keyboard inputs
         const moveDir = new THREE.Vector3();
-
         if (this.isDown(keys, 'KeyW') || this.isDown(keys, 'ArrowUp')) moveDir.z -= 1;
         if (this.isDown(keys, 'KeyS') || this.isDown(keys, 'ArrowDown')) moveDir.z += 1;
         if (this.isDown(keys, 'KeyA') || this.isDown(keys, 'ArrowLeft')) moveDir.x -= 1;
@@ -76,7 +164,7 @@ export class Player {
         this.velocity.x = moveDir.x * speed;
         this.velocity.z = moveDir.z * speed;
 
-        // 3. Gravity and Jumping
+        // Apply gravity and jumping
         const jumpPressed = isJumping || this.isDown(keys, 'Space');
 
         if (!this.isGrounded) {
@@ -89,21 +177,11 @@ export class Player {
             }
         }
 
-        // 4. Apply displacement
+        // Apply movement with full collision detection
         const displacement = this.velocity.clone().multiplyScalar(delta);
-        this.pos.x += displacement.x;
-        this.pos.z += displacement.z;
-        this.pos.y += displacement.y;
+        this.collideWithWorld(displacement);
 
-        // Basic terrain collision baseline
-        const baseGroundY = 2.0;
-        if (this.pos.y < baseGroundY + this.eyeHeight) {
-            this.pos.y = baseGroundY + this.eyeHeight;
-            this.velocity.y = 0;
-            this.isGrounded = true;
-        }
-
-        // 5. Update camera position to follow player
+        // Update camera position to follow player body
         this.camera.position.copy(this.pos);
 
         return isMoving;
