@@ -357,11 +357,14 @@ export class Engine {
         this.updateHeldBlock();
     }
 
-    updateHeldBlock() {
+updateHeldBlock() {
         const blockId = this.hotbarItems[this.selectedHotbarIndex];
-        this.interaction.setHeldItem(blockId);
-        const name = blockId !== null ? BLOCK_DEFS[blockId].name : 'Empty';
-        document.getElementById('debug-block').innerText = `Selected: ${name}`;
+        if (this.interaction && typeof this.interaction.setHeldItem === 'function') {
+            this.interaction.setHeldItem(blockId);
+        }
+        const name = (blockId !== null && BLOCK_DEFS[blockId]) ? BLOCK_DEFS[blockId].name : 'Empty';
+        const debugEl = document.getElementById('debug-block');
+        if (debugEl) debugEl.innerText = `Selected: ${name}`;
     }
 
     toggleInventory2x2() {
