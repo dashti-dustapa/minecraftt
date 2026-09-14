@@ -40,6 +40,9 @@ export class Engine {
         this.syncHotbarHUD();
         this.renderHUD();
 
+        // Ensure all modals are closed at game start
+        this.closeModals();
+
         this.prevTime = performance.now();
         this.frameCount = 0;
         this.fpsTimer = 0;
@@ -612,6 +615,7 @@ export class Engine {
                     pauseScreen.classList.add('hidden');
                     pauseScreen.style.display = 'none';
                 }
+                this.closeModals();
                 this.canvas.requestPointerLock();
             });
         }
