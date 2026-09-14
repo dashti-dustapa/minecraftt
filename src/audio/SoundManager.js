@@ -1,49 +1,86 @@
 /**
  * SoundManager.js
- * Zero-dependency procedural audio engine using Web Audio API.
- * Synthesizes footsteps, block breaking, placing, and mob impacts.
+ * Audible procedural audio engine for footsteps, block breaking,
+ * block placing, and combat hits using Web Audio API.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
+        this.isUnlocked = false;
+
+        // Auto-unlock audio context on ANY user interaction
+        const unlock = () => {
+            this.initContext();
+            if (this.ctx && this.ctx.state === 'running') {
+                this.isUnlocked = true;
+                window.removeEventListener('pointerdown', unlock);
+                window.removeEventListener('keydown', unlock);
+                window.removeEventListener('click', unlock);
+            }
+        };
+
+        window.addEventListener('pointerdown', unlock);
+        window.addEventListener('keydown', unlock);
+        window.addEventListener('click', unlock);
     }
 
     initContext() {
-        if (!this.ctx) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx) {
-                this.ctx = new AudioCtx();
+        try {
+            if (!this.ctx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) {
+                    this.ctx = new AudioCtx();
+                }
             }
-        }
-        if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        } catch (e) {
+            console.warn('Web Audio initialization error:', e);
         }
     }
 
     playStep() {
-        if (!this.ctx) return;
+        this.initContext();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+
         const now = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
+
+        // Crisp grass crunchy noise burst
+        const bufferSize = Math.floor(this.ctx.sampleRate * 0.06);
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(850, now);
+        filter.Q.setValueAtTime(2.0, now);
+
         const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.45, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
 
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(110, now);
-        osc.frequency.exponentialRampToValueAtTime(45, now + 0.08);
-
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-
-        osc.connect(gain);
+        noise.connect(filter);
+        filter.connect(gain);
         gain.connect(this.ctx.destination);
 
-        osc.start(now);
-        osc.stop(now + 0.08);
+        noise.start(now);
     }
 
     playBreak() {
-        if (!this.ctx) return;
+        this.initContext();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+
         const now = this.ctx.currentTime;
+
+        // Punchy block break crack
         const bufferSize = Math.floor(this.ctx.sampleRate * 0.12);
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -55,12 +92,12 @@ export class SoundManager {
         noise.buffer = buffer;
 
         const filter = this.ctx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(900, now);
-        filter.frequency.exponentialRampToValueAtTime(250, now + 0.12);
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1400, now);
+        filter.frequency.exponentialRampToValueAtTime(200, now + 0.12);
 
         const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.setValueAtTime(0.6, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
 
         noise.connect(filter);
@@ -71,42 +108,50 @@ export class SoundManager {
     }
 
     playPlace() {
-        if (!this.ctx) return;
+        this.initContext();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+
         const now = this.ctx.currentTime;
+
+        // Deep woody pop tone for placing blocks
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(320, now);
-        osc.frequency.exponentialRampToValueAtTime(140, now + 0.09);
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
 
-        gain.gain.setValueAtTime(0.24, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
 
         osc.start(now);
-        osc.stop(now + 0.09);
+        osc.stop(now + 0.08);
     }
 
     playHit() {
-        if (!this.ctx) return;
+        this.initContext();
+        if (!this.ctx || this.ctx.state !== 'running') return;
+
         const now = this.ctx.currentTime;
+
+        // Sharp hit impact tone
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220, now);
-        osc.frequency.exponentialRampToValueAtTime(55, now + 0.15);
+        osc.frequency.setValueAtTime(260, now);
+        osc.frequency.exponentialRampToValueAtTime(60, now + 0.14);
 
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        gain.gain.setValueAtTime(0.55, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
 
         osc.start(now);
-        osc.stop(now + 0.15);
+        osc.stop(now + 0.14);
     }
 }
