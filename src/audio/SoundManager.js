@@ -1,26 +1,25 @@
 /**
  * SoundManager.js
- * Multi-track audio engine with official Minecraft OGG/MP3 files
- * and procedural fallback audio.
+ * Multi-track audio engine reading official Minecraft OGG files directly from root.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
 
-        // Path to official sound assets
+        // Direct root paths matching your uploaded files
         this.zombieAudio = {
             idle: [
-                './assets/sounds/Zombie_idle1.ogg',
-                './assets/sounds/Zombie_idle2.ogg',
-                './assets/sounds/Zombie_idle3.ogg'
+                './Zombie_idle1.ogg',
+                './Zombie_idle2.ogg',
+                './Zombie_idle3.ogg'
             ],
             hurt: [
-                './assets/sounds/Zombie_hurt1.ogg',
-                './assets/sounds/Zombie_hurt2.ogg'
+                './Zombie_hurt1.ogg',
+                './Zombie_hurt2.ogg'
             ],
             death: [
-                './assets/sounds/Zombie_death.ogg'
+                './Zombie_death.ogg'
             ]
         };
     }
@@ -36,44 +35,26 @@ export class SoundManager {
         return this.ctx;
     }
 
-    playAudioFile(list, volume = 0.75) {
+    playAudioFile(list, volume = 0.8) {
         if (!list || list.length === 0) return;
         const randomSrc = list[Math.floor(Math.random() * list.length)];
         const audio = new Audio(randomSrc);
         audio.volume = volume;
-        audio.play().catch(() => {
-            // Falls back to procedural audio if local file is missing
-            this.playProceduralGroan();
+        audio.play().catch(err => {
+            console.warn('Audio playback error:', err);
         });
     }
 
     playZombieGroan() {
-        this.playAudioFile(this.zombieAudio.idle, 0.7);
+        this.playAudioFile(this.zombieAudio.idle, 0.75);
     }
 
     playZombieHurt() {
-        this.playAudioFile(this.zombieAudio.hurt, 0.85);
+        this.playAudioFile(this.zombieAudio.hurt, 0.9);
     }
 
     playZombieDeath() {
-        this.playAudioFile(this.zombieAudio.death, 0.9);
-    }
-
-    playProceduralGroan() {
-        const ctx = this.initContext();
-        if (!ctx) return;
-        const now = ctx.currentTime + 0.01;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(65, now);
-        osc.frequency.linearRampToValueAtTime(50, now + 1.2);
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 1.2);
+        this.playAudioFile(this.zombieAudio.death, 1.0);
     }
 
     playSheepBaa() {
