@@ -1,6 +1,6 @@
 /**
  * Engine.js
- * Master game engine coordinator with unified Player position compatibility,
+ * Master game engine coordinator with graphical 2D item icons,
  * 3x3 Crafting, Mob Manager, and Save/Load persistence.
  */
 
@@ -87,9 +87,8 @@ export class Engine {
     initSystems() {
         this.textureManager = new TextureManager();
         this.world = new World(this.scene, this.textureManager);
-this.player = new Player(this.camera, this.world);
-        
-        // Link player position directly to camera position if pos is missing
+        this.player = new Player(this.camera, this.world);
+
         if (!this.player.pos) {
             this.player.pos = this.player.position || this.camera.position;
         }
@@ -116,6 +115,17 @@ this.player = new Player(this.camera, this.world);
 
     getPlayerPosition() {
         return this.player.pos || this.player.position || this.camera.position;
+    }
+
+    getItemIconHTML(blockId, size = 26) {
+        if (blockId === null || blockId === undefined) return '';
+        if (this.textureManager && typeof this.textureManager.getItemIcon === 'function') {
+            const iconUrl = this.textureManager.getItemIcon(blockId);
+            if (iconUrl) {
+                return `<img src="${iconUrl}" style="width:${size}px;height:${size}px;image-rendering:pixelated;pointer-events:none;display:block;margin:auto;">`;
+            }
+        }
+        return (BLOCK_DEFS[blockId] ? BLOCK_DEFS[blockId].name.split(' ')[0] : '');
     }
 
     initInventoryAndCrafting() {
@@ -195,10 +205,14 @@ this.player = new Player(this.camera, this.world);
 
         document.getElementById('btn-close-inv').addEventListener('click', () => this.closeModals());
         document.getElementById('btn-close-table').addEventListener('click', () => this.closeModals());
-        document.getElementById('btn-inv-mobile').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.toggleInventory2x2();
-        });
+        
+        const btnInvMobile = document.getElementById('btn-inv-mobile');
+        if (btnInvMobile) {
+            btnInvMobile.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.toggleInventory2x2();
+            });
+        }
 
         this.updateHeldBlock();
     }
@@ -257,11 +271,13 @@ this.player = new Player(this.camera, this.world);
         document.querySelectorAll('.craft-in-2x2').forEach(slot => {
             const idx = parseInt(slot.dataset.cslot);
             const item = this.craftGrid2x2[idx];
-            slot.innerText = item !== null ? BLOCK_DEFS[item].name.split(' ')[0] : '';
+            slot.innerHTML = this.getItemIconHTML(item, 24);
         });
 
         const out = document.getElementById('craft-out-2x2');
-        out.innerText = this.craftOutput2x2 !== null ? BLOCK_DEFS[this.craftOutput2x2].name.split(' ')[0] : '';
+        if (out) {
+            out.innerHTML = this.getItemIconHTML(this.craftOutput2x2, 28);
+        }
 
         this.renderInventoryGrid('inv-main-grid-2x2', 'inv-hotbar-grid-2x2', (item, i) => {
             for (let c = 0; c < 4; c++) {
@@ -279,11 +295,13 @@ this.player = new Player(this.camera, this.world);
         document.querySelectorAll('.craft-in-3x3').forEach(slot => {
             const idx = parseInt(slot.dataset.tslot);
             const item = this.craftGrid3x3[idx];
-            slot.innerText = item !== null ? BLOCK_DEFS[item].name.split(' ')[0] : '';
+            slot.innerHTML = this.getItemIconHTML(item, 24);
         });
 
         const out = document.getElementById('craft-out-3x3');
-        out.innerText = this.craftOutput3x3 !== null ? BLOCK_DEFS[this.craftOutput3x3].name.split(' ')[0] : '';
+        if (out) {
+            out.innerHTML = this.getItemIconHTML(this.craftOutput3x3, 28);
+        }
 
         this.renderInventoryGrid('inv-main-grid-3x3', 'inv-hotbar-grid-3x3', (item, i) => {
             for (let c = 0; c < 9; c++) {
@@ -299,38 +317,42 @@ this.player = new Player(this.camera, this.world);
 
     renderInventoryGrid(mainId, hotbarId, onMainSlotClick) {
         const mainGrid = document.getElementById(mainId);
-        mainGrid.innerHTML = '';
-        for (let i = 0; i < 27; i++) {
-            const slot = document.createElement('div');
-            slot.className = 'inv-slot';
-            const item = this.mainInventory[i];
-            slot.innerText = item !== null ? BLOCK_DEFS[item].name.split(' ')[0] : '';
-            slot.addEventListener('click', () => {
-                if (item !== null) onMainSlotClick(item, i);
-            });
-            mainGrid.appendChild(slot);
+        if (mainGrid) {
+            mainGrid.innerHTML = '';
+            for (let i = 0; i < 27; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+                const item = this.mainInventory[i];
+                slot.innerHTML = this.getItemIconHTML(item, 24);
+                slot.addEventListener('click', () => {
+                    if (item !== null) onMainSlotClick(item, i);
+                });
+                mainGrid.appendChild(slot);
+            }
         }
 
         const hotGrid = document.getElementById(hotbarId);
-        hotGrid.innerHTML = '';
-        for (let i = 0; i < 9; i++) {
-            const slot = document.createElement('div');
-            slot.className = 'inv-slot';
-            const item = this.hotbarItems[i];
-            slot.innerText = item !== null ? BLOCK_DEFS[item].name.split(' ')[0] : '';
-            slot.addEventListener('click', () => {
-                if (item !== null) {
-                    const freeIdx = this.mainInventory.indexOf(null);
-                    if (freeIdx !== -1) {
-                        this.mainInventory[freeIdx] = item;
-                        this.hotbarItems[i] = null;
-                        this.syncHotbarHUD();
-                        if (this.activeModal === 'inv') this.render2x2UI();
-                        if (this.activeModal === 'table') this.render3x3UI();
+        if (hotGrid) {
+            hotGrid.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+                const item = this.hotbarItems[i];
+                slot.innerHTML = this.getItemIconHTML(item, 24);
+                slot.addEventListener('click', () => {
+                    if (item !== null) {
+                        const freeIdx = this.mainInventory.indexOf(null);
+                        if (freeIdx !== -1) {
+                            this.mainInventory[freeIdx] = item;
+                            this.hotbarItems[i] = null;
+                            this.syncHotbarHUD();
+                            if (this.activeModal === 'inv') this.render2x2UI();
+                            if (this.activeModal === 'table') this.render3x3UI();
+                        }
                     }
-                }
-            });
-            hotGrid.appendChild(slot);
+                });
+                hotGrid.appendChild(slot);
+            }
         }
     }
 
@@ -338,7 +360,8 @@ this.player = new Player(this.camera, this.world);
         document.querySelectorAll('#hotbar .hotbar-slot').forEach((slot, i) => {
             const item = this.hotbarItems[i];
             const keySpan = `<span class="slot-key">${i + 1}</span>`;
-            slot.innerHTML = keySpan + (item !== null ? BLOCK_DEFS[item].name.split(' ')[0] : '');
+            const iconHtml = this.getItemIconHTML(item, 28);
+            slot.innerHTML = keySpan + iconHtml;
         });
         this.updateHeldBlock();
     }
@@ -396,39 +419,45 @@ this.player = new Player(this.camera, this.world);
 
     renderHUD() {
         const hBar = document.getElementById('health-bar');
-        hBar.innerHTML = '';
-        const hp = this.player.health ?? 20;
-        for (let i = 0; i < 10; i++) {
-            const hVal = (i + 1) * 2;
-            const heart = document.createElement('span');
-            heart.className = 'heart';
-            heart.innerText = hp >= hVal ? '❤️' : (hp >= hVal - 1 ? '💔' : '🖤');
-            hBar.appendChild(heart);
+        if (hBar) {
+            hBar.innerHTML = '';
+            const hp = this.player.health ?? 20;
+            for (let i = 0; i < 10; i++) {
+                const hVal = (i + 1) * 2;
+                const heart = document.createElement('span');
+                heart.className = 'heart';
+                heart.innerText = hp >= hVal ? '❤️' : (hp >= hVal - 1 ? '💔' : '🖤');
+                hBar.appendChild(heart);
+            }
         }
 
         const fBar = document.getElementById('hunger-bar');
-        fBar.innerHTML = '';
-        const foodVal = this.player.hunger ?? 20;
-        for (let i = 0; i < 10; i++) {
-            const food = document.createElement('span');
-            food.className = 'food';
-            food.innerText = foodVal >= (i + 1) * 2 ? '🍗' : '🦴';
-            fBar.appendChild(food);
+        if (fBar) {
+            fBar.innerHTML = '';
+            const foodVal = this.player.hunger ?? 20;
+            for (let i = 0; i < 10; i++) {
+                const food = document.createElement('span');
+                food.className = 'food';
+                food.innerText = foodVal >= (i + 1) * 2 ? '🍗' : '🦴';
+                fBar.appendChild(food);
+            }
         }
 
         const bBar = document.getElementById('bubble-bar');
-        bBar.innerHTML = '';
-        if (this.player.headSubmerged) {
-            bBar.style.display = 'flex';
-            const ox = this.player.oxygen ?? 20;
-            for (let i = 0; i < Math.ceil(ox / 2); i++) {
-                const bubble = document.createElement('span');
-                bubble.className = 'bubble';
-                bubble.innerText = '🫧';
-                bBar.appendChild(bubble);
+        if (bBar) {
+            bBar.innerHTML = '';
+            if (this.player.headSubmerged) {
+                bBar.style.display = 'flex';
+                const ox = this.player.oxygen ?? 20;
+                for (let i = 0; i < Math.ceil(ox / 2); i++) {
+                    const bubble = document.createElement('span');
+                    bubble.className = 'bubble';
+                    bubble.innerText = '🫧';
+                    bBar.appendChild(bubble);
+                }
+            } else {
+                bBar.style.display = 'none';
             }
-        } else {
-            bBar.style.display = 'none';
         }
     }
 
@@ -510,9 +539,11 @@ this.player = new Player(this.camera, this.world);
 
         const bindTouch = (id, key) => {
             const el = document.getElementById(id);
-            el.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys[key] = true; });
-            el.addEventListener('touchend', (e) => { e.preventDefault(); this.keys[key] = false; });
-            el.addEventListener('touchcancel', (e) => { e.preventDefault(); this.keys[key] = false; });
+            if (el) {
+                el.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys[key] = true; });
+                el.addEventListener('touchend', (e) => { e.preventDefault(); this.keys[key] = false; });
+                el.addEventListener('touchcancel', (e) => { e.preventDefault(); this.keys[key] = false; });
+            }
         };
 
         bindTouch('btn-up', 'KeyW');
@@ -521,15 +552,21 @@ this.player = new Player(this.camera, this.world);
         bindTouch('btn-right', 'KeyD');
         bindTouch('btn-jump', 'Space');
 
-        document.getElementById('btn-break').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.handleAttackOrBreak();
-        });
+        const btnBreak = document.getElementById('btn-break');
+        if (btnBreak) {
+            btnBreak.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.handleAttackOrBreak();
+            });
+        }
 
-        document.getElementById('btn-place').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.handlePlaceOrInteract();
-        });
+        const btnPlace = document.getElementById('btn-place');
+        if (btnPlace) {
+            btnPlace.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                this.handlePlaceOrInteract();
+            });
+        }
 
         window.addEventListener('keydown', (e) => {
             if (e.code === 'KeyE') {
@@ -590,7 +627,9 @@ this.player = new Player(this.camera, this.world);
             if (removedTypeId !== null) {
                 this.saveManager.recordRemoval(pos.x, pos.y, pos.z);
                 const freeSlot = this.mainInventory.indexOf(null);
-                if (freeSlot !== -1) this.mainInventory[freeSlot] = removedTypeId;
+                if (freeSlot !== -1) {
+                    this.mainInventory[freeSlot] = removedTypeId;
+                }
             }
         }
     }
@@ -710,7 +749,6 @@ this.player = new Player(this.camera, this.world);
             }
         }
 
-        // Camera must always render
         this.renderer.render(this.scene, this.camera);
     }
 }
