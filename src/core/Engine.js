@@ -1,7 +1,8 @@
 /**
  * Engine.js
- * Master game engine coordinator with procedural Web Audio integration,
- * graphical 2D item icons, 3x3 Crafting, Mob Manager, and Save/Load persistence.
+ * Master game engine coordinator with procedural Web Audio,
+ * particle break dynamics, graphical 2D item icons, 3x3 Crafting,
+ * Mob Manager, and Save/Load persistence.
  */
 
 const THREE = window.THREE;
@@ -14,6 +15,7 @@ import { Interaction } from '../player/Interaction.js';
 import { MobManager } from '../entities/MobManager.js';
 import { SaveManager } from '../storage/SaveManager.js';
 import { SoundManager } from '../audio/SoundManager.js';
+import { ParticleManager } from '../effects/ParticleManager.js';
 
 export class Engine {
     constructor() {
@@ -100,6 +102,7 @@ export class Engine {
             this.player.position = this.player.pos;
         }
 
+        this.particleManager = new ParticleManager(this.scene);
         this.interaction = new Interaction(this.scene, this.camera, this.world, this.textureManager);
         this.mobManager = new MobManager(this.scene, this.world, this.player);
         this.saveManager = new SaveManager();
@@ -644,6 +647,12 @@ export class Engine {
             const removedTypeId = this.interaction.breakBlock();
             if (removedTypeId !== null) {
                 this.soundManager.playBreak();
+
+                // Spawn block break particles at center of broken block
+                if (this.particleManager) {
+                    this.particleManager.spawnBreakParticles(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5, removedTypeId);
+                }
+
                 this.saveManager.recordRemoval(pos.x, pos.y, pos.z);
                 const freeSlot = this.mainInventory.indexOf(null);
                 if (freeSlot !== -1) {
@@ -772,6 +781,11 @@ export class Engine {
             }
         } else if (this.interaction) {
             this.interaction.selectionBox.visible = false;
+        }
+
+        // Always update particle animations and life cycle
+        if (this.particleManager) {
+            this.particleManager.update(delta);
         }
 
         if (playerPos) {
