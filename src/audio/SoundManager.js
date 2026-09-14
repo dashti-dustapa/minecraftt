@@ -1,14 +1,28 @@
 /**
  * SoundManager.js
- * Synthesizes realistic guttural zombie moans (Hhh-u-r-g-h) using
- * vocal tract formant filters & breath noise, with custom MP3 support.
+ * Multi-track audio engine with official Minecraft OGG/MP3 files
+ * and procedural fallback audio.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
-        // Optionally put a direct link to an MP3 here if you host the file
-        this.customZombieAudioUrl = null; 
+
+        // Path to official sound assets
+        this.zombieAudio = {
+            idle: [
+                './assets/sounds/Zombie_idle1.ogg',
+                './assets/sounds/Zombie_idle2.ogg',
+                './assets/sounds/Zombie_idle3.ogg'
+            ],
+            hurt: [
+                './assets/sounds/Zombie_hurt1.ogg',
+                './assets/sounds/Zombie_hurt2.ogg'
+            ],
+            death: [
+                './assets/sounds/Zombie_death.ogg'
+            ]
+        };
     }
 
     initContext() {
@@ -22,67 +36,44 @@ export class SoundManager {
         return this.ctx;
     }
 
-    playZombieGroan() {
-        // If an external real MP3 file is assigned, play it directly
-        if (this.customZombieAudioUrl) {
-            const audio = new Audio(this.customZombieAudioUrl);
-            audio.volume = 0.8;
-            audio.play().catch(() => {});
-            return;
-        }
+    playAudioFile(list, volume = 0.75) {
+        if (!list || list.length === 0) return;
+        const randomSrc = list[Math.floor(Math.random() * list.length)];
+        const audio = new Audio(randomSrc);
+        audio.volume = volume;
+        audio.play().catch(() => {
+            // Falls back to procedural audio if local file is missing
+            this.playProceduralGroan();
+        });
+    }
 
+    playZombieGroan() {
+        this.playAudioFile(this.zombieAudio.idle, 0.7);
+    }
+
+    playZombieHurt() {
+        this.playAudioFile(this.zombieAudio.hurt, 0.85);
+    }
+
+    playZombieDeath() {
+        this.playAudioFile(this.zombieAudio.death, 0.9);
+    }
+
+    playProceduralGroan() {
         const ctx = this.initContext();
         if (!ctx) return;
-
         const now = ctx.currentTime + 0.01;
-
-        // 1. Vocal Cord Pulse (Deep guttural base rumble)
         const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(68, now);
-        osc.frequency.linearRampToValueAtTime(54, now + 0.6);
-        osc.frequency.linearRampToValueAtTime(74, now + 1.1);
-        osc.frequency.linearRampToValueAtTime(46, now + 1.8);
-
-        // 2. Throat Breath Noise (Creates the dry "Hhh" and "Rrrgh" rasp)
-        const bufferSize = Math.floor(ctx.sampleRate * 1.8);
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = (Math.random() * 2 - 1) * 0.45;
-        }
-        const noise = ctx.createBufferSource();
-        noise.buffer = buffer;
-
-        // 3. Human Vocal Formants (Filters creating "Uuu-r-g-h" vowel resonance)
-        const throatFormant = ctx.createBiquadFilter();
-        throatFormant.type = 'bandpass';
-        throatFormant.frequency.setValueAtTime(320, now);
-        throatFormant.Q.setValueAtTime(4.0, now);
-
-        const mouthFormant = ctx.createBiquadFilter();
-        mouthFormant.type = 'bandpass';
-        mouthFormant.frequency.setValueAtTime(760, now);
-        mouthFormant.Q.setValueAtTime(2.8, now);
-
-        const masterGain = ctx.createGain();
-        masterGain.gain.setValueAtTime(0.02, now);
-        masterGain.gain.linearRampToValueAtTime(0.75, now + 0.4); // Inhale gasp "Hhh"
-        masterGain.gain.setValueAtTime(0.65, now + 1.2);          // Deep moan "Bruuuh"
-        masterGain.gain.exponentialRampToValueAtTime(0.001, now + 1.8); // Guttural drop "rgh"
-
-        // Connect nodes
-        osc.connect(throatFormant);
-        noise.connect(mouthFormant);
-
-        throatFormant.connect(masterGain);
-        mouthFormant.connect(masterGain);
-        masterGain.connect(ctx.destination);
-
+        osc.frequency.setValueAtTime(65, now);
+        osc.frequency.linearRampToValueAtTime(50, now + 1.2);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
         osc.start(now);
-        noise.start(now);
-        osc.stop(now + 1.8);
-        noise.stop(now + 1.8);
+        osc.stop(now + 1.2);
     }
 
     playSheepBaa() {
