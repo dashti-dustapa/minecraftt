@@ -1,7 +1,7 @@
 /**
  * TextureManager.js
  * Procedural 16x16 pixel textures, 3D block materials,
- * and 2D UI item icon generators with text labels for Inventory/Hotbar.
+ * and 2D UI item icon generators for Inventory/Hotbar.
  */
 
 import * as THREE from 'three';
@@ -160,6 +160,15 @@ export class TextureManager {
             ctx.fillRect(4, 4, 3, 8);
             ctx.fillRect(9, 4, 3, 8);
         });
+
+        this.textures.leaves = this.createPixelTexture(ctx => {
+            ctx.fillStyle = '#32691e';
+            ctx.fillRect(0, 0, 16, 16);
+            for (let i = 0; i < 45; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? '#244e15' : '#45852b';
+                ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+            }
+        });
     }
 
     initMaterials() {
@@ -189,77 +198,83 @@ export class TextureManager {
         this.materials.water = new THREE.MeshLambertMaterial({ map: this.textures.water, transparent: true, opacity: 0.65 });
         this.materials.diamond = new THREE.MeshLambertMaterial({ map: this.textures.diamond });
         this.materials.crafting_table = new THREE.MeshLambertMaterial({ map: this.textures.crafting_table });
+        this.materials.leaves = new THREE.MeshLambertMaterial({ map: this.textures.leaves, transparent: true, opacity: 0.88 });
     }
 
     initItemIcons() {
         const makeIcon = (drawFn) => this.createPixelCanvas(drawFn).toDataURL();
 
-        this.itemIcons[0] = makeIcon(ctx => { // Grass Block
+        this.itemIcons[0] = makeIcon(ctx => {
             ctx.fillStyle = '#866043'; ctx.fillRect(2, 6, 12, 9);
             ctx.fillStyle = '#5b8c32'; ctx.fillRect(2, 2, 12, 5);
         });
-        this.itemIcons[1] = makeIcon(ctx => { // Dirt
+        this.itemIcons[1] = makeIcon(ctx => {
             ctx.fillStyle = '#866043'; ctx.fillRect(2, 2, 12, 12);
             ctx.fillStyle = '#68482f'; ctx.fillRect(4, 4, 3, 3); ctx.fillRect(9, 9, 3, 3);
         });
-        this.itemIcons[2] = makeIcon(ctx => { // Stone
+        this.itemIcons[2] = makeIcon(ctx => {
             ctx.fillStyle = '#787878'; ctx.fillRect(2, 2, 12, 12);
             ctx.fillStyle = '#5e5e5e'; ctx.fillRect(4, 4, 4, 3); ctx.fillRect(9, 9, 3, 4);
         });
-        this.itemIcons[3] = makeIcon(ctx => { // Cobblestone
+        this.itemIcons[3] = makeIcon(ctx => {
             ctx.fillStyle = '#6c6c6c'; ctx.fillRect(2, 2, 12, 12);
             ctx.fillStyle = '#3a3a3a'; ctx.strokeRect(3, 3, 10, 10);
         });
-        this.itemIcons[4] = makeIcon(ctx => { // Oak Planks
+        this.itemIcons[4] = makeIcon(ctx => {
             ctx.fillStyle = '#9c7849'; ctx.fillRect(2, 2, 12, 12);
             ctx.fillStyle = '#6b4f2c'; ctx.fillRect(2, 6, 12, 1); ctx.fillRect(2, 11, 12, 1);
         });
-        this.itemIcons[5] = makeIcon(ctx => { // Torch
+        this.itemIcons[5] = makeIcon(ctx => {
             ctx.fillStyle = '#ffaa00'; ctx.fillRect(6, 2, 4, 4);
             ctx.fillStyle = '#ffffff'; ctx.fillRect(7, 3, 2, 2);
             ctx.fillStyle = '#6b4f2c'; ctx.fillRect(7, 6, 2, 8);
         });
-        this.itemIcons[6] = makeIcon(ctx => { // Glass
+        this.itemIcons[6] = makeIcon(ctx => {
             ctx.strokeStyle = '#c4e3f3'; ctx.lineWidth = 1; ctx.strokeRect(2, 2, 12, 12);
             ctx.fillStyle = '#e8f7ff'; ctx.fillRect(4, 4, 3, 3);
         });
-        this.itemIcons[7] = makeIcon(ctx => { // Water
+        this.itemIcons[7] = makeIcon(ctx => {
             ctx.fillStyle = '#2e5ec4'; ctx.fillRect(2, 2, 12, 12);
             ctx.fillStyle = '#5684e8'; ctx.fillRect(4, 5, 5, 2);
         });
-        this.itemIcons[8] = makeIcon(ctx => { // Diamond Ore
+        this.itemIcons[8] = makeIcon(ctx => {
             ctx.fillStyle = '#787878'; ctx.fillRect(2, 2, 12, 12);
             ctx.fillStyle = '#4cedd9'; ctx.fillRect(4, 5, 3, 3); ctx.fillRect(9, 8, 3, 3);
         });
-        this.itemIcons[9] = makeIcon(ctx => { // Oak Log
+        this.itemIcons[9] = makeIcon(ctx => {
             ctx.fillStyle = '#6d5332'; ctx.fillRect(3, 2, 10, 12);
             ctx.fillStyle = '#8f6f47'; ctx.fillRect(5, 2, 6, 3);
         });
-        this.itemIcons[10] = makeIcon(ctx => { // Crafting Table
+        this.itemIcons[10] = makeIcon(ctx => {
             ctx.fillStyle = '#9c7849'; ctx.fillRect(2, 2, 12, 12);
             ctx.fillStyle = '#5c4028'; ctx.strokeRect(3, 3, 10, 10);
             ctx.fillStyle = '#3a2412'; ctx.fillRect(5, 5, 2, 6);
         });
-        this.itemIcons[11] = makeIcon(ctx => { // Stick
+        this.itemIcons[11] = makeIcon(ctx => {
             ctx.fillStyle = '#6b4f2c';
             for (let i = 0; i < 10; i++) ctx.fillRect(12 - i, 3 + i, 2, 2);
         });
-        this.itemIcons[12] = makeIcon(ctx => { // Wooden Pickaxe
+        this.itemIcons[12] = makeIcon(ctx => {
             ctx.fillStyle = '#9c7849'; ctx.fillRect(4, 2, 8, 3); ctx.fillRect(3, 4, 2, 3);
             ctx.fillStyle = '#6b4f2c';
             for (let i = 0; i < 8; i++) ctx.fillRect(10 - i, 6 + i, 2, 2);
         });
-        this.itemIcons[13] = makeIcon(ctx => { // Wooden Sword
+        this.itemIcons[13] = makeIcon(ctx => {
             ctx.fillStyle = '#9c7849';
             for (let i = 0; i < 7; i++) ctx.fillRect(11 - i, 3 + i, 3, 3);
             ctx.fillStyle = '#4a3319'; ctx.fillRect(5, 9, 3, 3);
             ctx.fillStyle = '#6b4f2c'; ctx.fillRect(3, 11, 2, 2);
         });
-        this.itemIcons[14] = makeIcon(ctx => { // Diamond Sword
+        this.itemIcons[14] = makeIcon(ctx => {
             ctx.fillStyle = '#4cedd9';
             for (let i = 0; i < 7; i++) ctx.fillRect(11 - i, 3 + i, 3, 3);
             ctx.fillStyle = '#267b70'; ctx.fillRect(5, 9, 3, 3);
             ctx.fillStyle = '#6b4f2c'; ctx.fillRect(3, 11, 2, 2);
+        });
+        this.itemIcons[15] = makeIcon(ctx => { // Oak Leaves
+            ctx.fillStyle = '#32691e'; ctx.fillRect(2, 2, 12, 12);
+            ctx.fillStyle = '#45852b'; ctx.fillRect(4, 4, 4, 4); ctx.fillRect(8, 8, 4, 3);
+            ctx.fillStyle = '#244e15'; ctx.fillRect(3, 8, 3, 3); ctx.fillRect(9, 4, 3, 3);
         });
     }
 
@@ -280,6 +295,7 @@ export class TextureManager {
             case 8: return this.materials.diamond;
             case 9: return this.materials.log;
             case 10: return this.materials.crafting_table;
+            case 15: return this.materials.leaves;
             default: return this.materials.stone;
         }
     }
