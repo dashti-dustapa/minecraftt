@@ -3,7 +3,7 @@
  * Procedural 16x16 pixel-art texture generator for Minecraft blocks.
  */
 
-import * as THREE from 'three';
+const THREE = window.THREE;
 
 export class TextureManager {
     constructor() {
