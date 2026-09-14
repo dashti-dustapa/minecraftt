@@ -20,8 +20,8 @@ export class Player {
         this.camera = camera;
         this.world = world;
 
-        // Position & Coordinates
-        this.pos = new THREE.Vector3(0, 18, 0);
+        // Position & Coordinates (Spawns above terrain top at Y=12)
+        this.pos = new THREE.Vector3(0, 12, 0);
         this.position = this.pos; // Alias for engine safety
         this.velocity = new THREE.Vector3(0, 0, 0);
 
@@ -127,7 +127,7 @@ export class Player {
                         this.velocity.y = 0;
                     }
                 }
-                // Floor collision (Landing on ground)
+                // Floor collision (Landing on top of block)
                 else if (displacement.y < 0) {
                     const blockY = Math.floor(currentFeetY);
                     if (this.isSolidBlock(x, blockY, z)) {
@@ -182,7 +182,7 @@ export class Player {
 
         // Void Fall Respawn: If falling into the void below -30, teleport back up
         if (this.pos.y < -30) {
-            this.pos.set(0, 20, 0);
+            this.pos.set(0, 12, 0);
             this.velocity.set(0, 0, 0);
         }
 
