@@ -567,7 +567,7 @@ export class Engine {
         }
     }
 
-    initInputs() {
+initInputs() {
         this.keys = {};
         this.isLocked = false;
         this.isGameRunning = false;
@@ -575,119 +575,68 @@ export class Engine {
         const pauseScreen = document.getElementById('pause-screen');
         const playBtn = document.getElementById('btn-play');
 
-        playBtn.addEventListener('click', () => {
-            this.soundManager.initContext();
-            this.isGameRunning = true;
-            pauseScreen.classList.add('hidden');
-            if (!this.isTouchDevice) this.canvas.requestPointerLock();
-        });
-
-        document.addEventListener('pointerlockchange', () => {
-            if (!this.isTouchDevice) {
-                this.isLocked = document.pointerLockElement === this.canvas;
-                if (this.isLocked) {
-                    this.soundManager.initContext();
+        // Play Button Click
+        if (playBtn) {
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.soundManager.initContext();
+                this.isGameRunning = true;
+                if (pauseScreen) {
                     pauseScreen.classList.add('hidden');
-                    this.activeModal = null;
-                    document.getElementById('inventory-screen').classList.add('hidden');
-                    document.getElementById('crafting-table-screen').classList.add('hidden');
-                } else if (!this.activeModal && !this.player.isDead) {
-                    pauseScreen.classList.remove('hidden');
-                    this.saveManager.saveGame(this.player, this);
+                    pauseScreen.style.display = 'none';
                 }
+                this.canvas.requestPointerLock();
+            });
+        }
+
+        // Pointer Lock State Changes
+        document.addEventListener('pointerlockchange', () => {
+            this.isLocked = (document.pointerLockElement === this.canvas);
+            if (this.isLocked) {
+                this.soundManager.initContext();
+                if (pauseScreen) pauseScreen.style.display = 'none';
+            } else if (!this.activeModal && !this.player.isDead && this.isGameRunning) {
+                if (pauseScreen) pauseScreen.style.display = 'flex';
             }
         });
 
+        // Click anywhere on canvas to re-lock pointer
+        this.canvas.addEventListener('click', () => {
+            if (!this.isLocked && this.isGameRunning && !this.activeModal && !this.player.isDead) {
+                this.canvas.requestPointerLock();
+            }
+        });
+
+        // Mouse look
         document.addEventListener('mousemove', (e) => {
-            if (!this.isLocked || this.activeModal || this.isTouchDevice || this.player.isDead) return;
-            this.player.yaw -= e.movementX * 0.0022;
-            this.player.pitch -= e.movementY * 0.0022;
+            if (!this.isLocked || this.activeModal || this.player.isDead) return;
+            this.player.yaw -= e.movementX * 0.0024;
+            this.player.pitch -= e.movementY * 0.0024;
             this.player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.player.pitch));
         });
 
-        this.cameraTouchId = null;
-        this.lastTouchX = 0;
-        this.lastTouchY = 0;
-
-        window.addEventListener('touchstart', (e) => {
+        // Left-Click: Break | Right-Click: Place
+        window.addEventListener('mousedown', (e) => {
             this.soundManager.initContext();
-            if (!this.isGameRunning || this.activeModal || this.player.isDead) return;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const t = e.changedTouches[i];
-                if (t.clientX > window.innerWidth * 0.35 && this.cameraTouchId === null) {
-                    this.cameraTouchId = t.identifier;
-                    this.lastTouchX = t.clientX;
-                    this.lastTouchY = t.clientY;
-                }
-            }
-        }, { passive: false });
+            if (this.activeModal || this.player.isDead) return;
 
-        window.addEventListener('touchmove', (e) => {
-            if (!this.isGameRunning || this.activeModal || this.player.isDead) return;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const t = e.changedTouches[i];
-                if (t.identifier === this.cameraTouchId) {
-                    const dx = t.clientX - this.lastTouchX;
-                    const dy = t.clientY - this.lastTouchY;
-                    this.player.yaw -= dx * 0.004;
-                    this.player.pitch -= dy * 0.004;
-                    this.player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.player.pitch));
-                    this.lastTouchX = t.clientX;
-                    this.lastTouchY = t.clientY;
-                }
+            if (!this.isLocked && !this.isTouchDevice) {
+                this.canvas.requestPointerLock();
+                return;
             }
-        }, { passive: false });
 
-        window.addEventListener('touchend', (e) => {
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === this.cameraTouchId) {
-                    this.cameraTouchId = null;
-                }
+            if (e.button === 0) {
+                this.handleAttackOrBreak();
+            } else if (e.button === 2) {
+                this.handlePlaceOrInteract();
             }
         });
 
-        const bindTouch = (id, key) => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys[key] = true; });
-                el.addEventListener('touchend', (e) => { e.preventDefault(); this.keys[key] = false; });
-                el.addEventListener('touchcancel', (e) => { e.preventDefault(); this.keys[key] = false; });
-            }
-        };
+        window.addEventListener('contextmenu', e => e.preventDefault());
 
-        bindTouch('btn-up', 'KeyW');
-        bindTouch('btn-down', 'KeyS');
-        bindTouch('btn-left', 'KeyA');
-        bindTouch('btn-right', 'KeyD');
-        bindTouch('btn-jump', 'Space');
-
-        const btnBreak = document.getElementById('btn-break');
-        if (btnBreak) {
-            btnBreak.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                this.handleAttackOrBreak();
-            });
-        }
-
-        const btnPlace = document.getElementById('btn-place');
-        if (btnPlace) {
-            btnPlace.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                this.handlePlaceOrInteract();
-            });
-        }
-
+        // Keys & Hotbar Numbers
         window.addEventListener('keydown', (e) => {
             if (this.player.isDead) return;
-            if (e.code === 'KeyE') {
-                this.toggleInventory2x2();
-                return;
-            }
-            if (e.code === 'Escape' && this.activeModal) {
-                this.closeModals();
-                return;
-            }
-            if (this.activeModal) return;
             this.keys[e.code] = true;
 
             if (e.code.startsWith('Digit') && e.code !== 'Digit0') {
@@ -696,24 +645,17 @@ export class Engine {
             }
         });
 
-        window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+        window.addEventListener('keyup', (e) => {
+            this.keys[e.code] = false;
+        });
 
+        // Mouse Wheel Slot Selection
         window.addEventListener('wheel', (e) => {
-            if (!this.isLocked || this.activeModal || this.player.isDead) return;
+            if (!this.isLocked || this.player.isDead) return;
             if (e.deltaY > 0) this.selectHotbarSlot((this.selectedHotbarIndex + 1) % 9);
             else this.selectHotbarSlot((this.selectedHotbarIndex - 1 + 9) % 9);
         });
-
-        window.addEventListener('mousedown', (e) => {
-            this.soundManager.initContext();
-            if (!this.isLocked || this.activeModal || this.player.isDead) return;
-            if (e.button === 0) this.handleAttackOrBreak();
-            else if (e.button === 2) this.handlePlaceOrInteract();
-        });
-
-        window.addEventListener('contextmenu', e => e.preventDefault());
     }
-
     handleAttackOrBreak() {
         if (this.player.isDead) return;
         const heldId = this.hotbarItems[this.selectedHotbarIndex];
