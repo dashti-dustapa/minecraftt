@@ -1,25 +1,33 @@
 /**
  * Constants.js
- * Global block definitions, physical constants, and player physics registry.
+ * Comprehensive constants registry covering all player, block, and world variables.
  */
 
+// World & Physics
 export const WORLD_SIZE = 30;
 export const SEA_LEVEL = 4;
+export const CHUNK_SIZE = 16;
 export const GRAVITY = -26.0;
 export const PLAYER_GRAVITY = -26.0;
 
-// Player dimensions and physics
+// Player Dimensions & Collision
 export const PLAYER_HEIGHT = 1.8;
 export const PLAYER_EYE_HEIGHT = 1.62;
 export const PLAYER_RADIUS = 0.3;
+
+// Player Movement Speeds & Jump Forces
+export const PLAYER_WALK_SPEED = 4.6;
 export const PLAYER_SPEED = 4.6;
 export const WALK_SPEED = 4.6;
-export const SPRINT_SPEED = 7.2;
+
 export const PLAYER_SPRINT_SPEED = 7.2;
+export const SPRINT_SPEED = 7.2;
+
 export const PLAYER_JUMP_FORCE = 8.5;
 export const JUMP_VELOCITY = 8.5;
 export const JUMP_FORCE = 8.5;
 
+// Block IDs
 export const BLOCK = {
     GRASS: 0,
     DIRT: 1,
@@ -38,6 +46,7 @@ export const BLOCK = {
     DIAMOND_SWORD: 14
 };
 
+// Block Definitions Registry
 export const BLOCK_DEFS = [
     { id: 0, name: 'Grass Block', solid: true, isTorch: false, isWater: false, isItem: false, attackDamage: 4 },
     { id: 1, name: 'Dirt', solid: true, isTorch: false, isWater: false, isItem: false, attackDamage: 4 },
@@ -55,3 +64,5 @@ export const BLOCK_DEFS = [
     { id: 13, name: 'Wooden Sword', solid: false, isTorch: false, isWater: false, isItem: true, attackDamage: 9 },
     { id: 14, name: 'Diamond Sword', solid: false, isTorch: false, isWater: false, isItem: true, attackDamage: 16 }
 ];
+
+export const BLOCK_TYPES = BLOCK_DEFS;
