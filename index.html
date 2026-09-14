@@ -6,7 +6,10 @@
     <title>Minecraft Web 3D</title>
     <link rel="stylesheet" href="style.css">
 
-    <!-- Three.js ES Module Mapping -->
+    <!-- Global Three.js Bundle -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- ES Module Map for src imports -->
     <script type="importmap">
     {
         "imports": {
@@ -16,15 +19,12 @@
     </script>
 </head>
 <body>
-    <!-- 3D Canvas -->
     <canvas id="game-canvas"></canvas>
 
-    <!-- Visual Overlays -->
     <div id="damage-flash"></div>
     <div id="underwater-tint"></div>
     <div id="crosshair">+</div>
 
-    <!-- Telemetry -->
     <div id="debug-info">
         <div id="debug-fps">FPS: 0</div>
         <div id="debug-pos">XYZ: 0.0 / 0.0 / 0.0</div>
@@ -32,7 +32,6 @@
         <div id="debug-time">Time: Day</div>
     </div>
 
-    <!-- HUD (Health, Hunger, Oxygen, and Hotbar) -->
     <div id="hud-container">
         <div id="status-bars">
             <div id="health-bar"></div>
@@ -40,7 +39,6 @@
             <div id="hunger-bar"></div>
         </div>
 
-        <!-- Hotbar (9 Action Slots) -->
         <div id="hotbar">
             <div class="hotbar-slot active" data-slot="0"></div>
             <div class="hotbar-slot" data-slot="1"></div>
@@ -54,7 +52,7 @@
         </div>
     </div>
 
-    <!-- Start / Pause Menu (Matches both btn-play and btn-singleplayer) -->
+    <!-- Start / Pause Screen -->
     <div id="pause-screen">
         <div class="menu-box">
             <h1>MINECRAFT</h1>
