@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minecraft Web - Modular Engine</title>
+    <title>Minecraft Web - Crafting 3x3 Edition</title>
     <style>
         * {
             box-sizing: border-box;
@@ -52,19 +52,8 @@
             mix-blend-mode: difference;
         }
 
-        #crosshair::before {
-            top: 8px;
-            left: 0;
-            width: 18px;
-            height: 2px;
-        }
-
-        #crosshair::after {
-            top: 0;
-            left: 8px;
-            width: 2px;
-            height: 18px;
-        }
+        #crosshair::before { top: 8px; left: 0; width: 18px; height: 2px; }
+        #crosshair::after { top: 0; left: 8px; width: 2px; height: 18px; }
 
         #damage-flash {
             position: absolute;
@@ -127,22 +116,9 @@
             padding: 0 4px;
         }
 
-        .stat-group {
-            display: flex;
-            gap: 2px;
-        }
-
-        .heart, .food, .bubble {
-            font-size: 13px;
-            line-height: 1;
-            filter: drop-shadow(1px 1px 1px #000);
-        }
-
-        #bubble-bar {
-            display: none;
-            gap: 2px;
-            margin-bottom: 2px;
-        }
+        .stat-group { display: flex; gap: 2px; }
+        .heart, .food, .bubble { font-size: 13px; line-height: 1; filter: drop-shadow(1px 1px 1px #000); }
+        #bubble-bar { display: none; gap: 2px; margin-bottom: 2px; }
 
         #hotbar {
             display: flex;
@@ -200,9 +176,7 @@
             pointer-events: none;
         }
 
-        .touch-device #mobile-controls {
-            display: block;
-        }
+        .touch-device #mobile-controls { display: block; }
 
         #dpad-container {
             position: absolute;
@@ -268,7 +242,8 @@
             pointer-events: auto;
         }
 
-        #inventory-screen {
+        /* Generic Modal Windows */
+        .modal-screen {
             position: absolute;
             top: 0;
             left: 0;
@@ -320,6 +295,13 @@
             gap: 3px;
         }
 
+        .grid-3x3 {
+            display: grid;
+            grid-template-columns: repeat(3, 36px);
+            grid-template-rows: repeat(3, 36px);
+            gap: 3px;
+        }
+
         .inv-slot {
             width: 36px;
             height: 36px;
@@ -335,6 +317,8 @@
             text-shadow: 1px 1px #000;
             text-align: center;
         }
+
+        .inv-slot:hover { background-color: #a4a4a4; }
 
         .inv-slot.output {
             width: 44px;
@@ -359,7 +343,7 @@
             padding-top: 6px;
         }
 
-        .btn-close-inv {
+        .btn-close-modal {
             background: #d9534f;
             color: #fff;
             border: 2px solid #000;
@@ -429,13 +413,8 @@
             color: #ccc;
         }
 
-        .instructions strong {
-            color: #55ff55;
-        }
-
-        .hidden {
-            display: none !important;
-        }
+        .instructions strong { color: #55ff55; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -445,7 +424,7 @@
     <div id="underwater-tint"></div>
 
     <div id="debug-overlay">
-        <p>Minecraft Web Engine (Modular)</p>
+        <p>Minecraft Web Engine (Crafting 3x3)</p>
         <p id="debug-fps">FPS: 60</p>
         <p id="debug-pos">XYZ: 0.0 / 0.0 / 0.0</p>
         <p id="debug-time">Time: Day</p>
@@ -488,27 +467,59 @@
         <div class="action-btn" id="btn-inv-mobile">INV</div>
     </div>
 
-    <div id="inventory-screen" class="hidden">
+    <!-- 2x2 Player Inventory Screen -->
+    <div id="inventory-screen" class="modal-screen hidden">
         <div class="inv-window">
             <div class="inv-top-row">
-                <span>Crafting</span>
+                <span>Crafting (2x2)</span>
                 <div class="crafting-area">
                     <div class="grid-2x2">
-                        <div class="inv-slot craft-in" data-cslot="0"></div>
-                        <div class="inv-slot craft-in" data-cslot="1"></div>
-                        <div class="inv-slot craft-in" data-cslot="2"></div>
-                        <div class="inv-slot craft-in" data-cslot="3"></div>
+                        <div class="inv-slot craft-in-2x2" data-cslot="0"></div>
+                        <div class="inv-slot craft-in-2x2" data-cslot="1"></div>
+                        <div class="inv-slot craft-in-2x2" data-cslot="2"></div>
+                        <div class="inv-slot craft-in-2x2" data-cslot="3"></div>
                     </div>
                     <span>➜</span>
-                    <div class="inv-slot output" id="craft-out"></div>
+                    <div class="inv-slot output" id="craft-out-2x2"></div>
                 </div>
-                <button class="btn-close-inv" id="btn-close-inv">X</button>
+                <button class="btn-close-modal" id="btn-close-inv">X</button>
             </div>
 
             <div>
                 <p style="font-size: 11px; margin-bottom: 4px;">Inventory</p>
-                <div class="inv-grid-main" id="inv-main-grid"></div>
-                <div class="inv-grid-hotbar" id="inv-hotbar-grid"></div>
+                <div class="inv-grid-main" id="inv-main-grid-2x2"></div>
+                <div class="inv-grid-hotbar" id="inv-hotbar-grid-2x2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3x3 Crafting Table Modal Screen -->
+    <div id="crafting-table-screen" class="modal-screen hidden">
+        <div class="inv-window">
+            <div class="inv-top-row">
+                <span>Crafting Table (3x3)</span>
+                <div class="crafting-area">
+                    <div class="grid-3x3">
+                        <div class="inv-slot craft-in-3x3" data-tslot="0"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="1"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="2"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="3"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="4"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="5"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="6"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="7"></div>
+                        <div class="inv-slot craft-in-3x3" data-tslot="8"></div>
+                    </div>
+                    <span>➜</span>
+                    <div class="inv-slot output" id="craft-out-3x3"></div>
+                </div>
+                <button class="btn-close-modal" id="btn-close-table">X</button>
+            </div>
+
+            <div>
+                <p style="font-size: 11px; margin-bottom: 4px;">Inventory</p>
+                <div class="inv-grid-main" id="inv-main-grid-3x3"></div>
+                <div class="inv-grid-hotbar" id="inv-hotbar-grid-3x3"></div>
             </div>
         </div>
     </div>
@@ -516,11 +527,11 @@
     <div id="pause-screen">
         <div class="menu-box">
             <h1 class="game-title">MINECRAFT</h1>
-            <p class="game-subtitle">Cross-Platform Modular Edition</p>
+            <p class="game-subtitle">3x3 Tools & Weapons Edition</p>
             <button id="btn-play" class="mc-btn">Tap / Click to Play</button>
             <div class="instructions">
-                <p><strong>Laptop</strong>: WASD to Move, Mouse Look, Left Click Break, Right Click Place, E Inventory.</p>
-                <p><strong>Mobile</strong>: D-Pad Move, Drag Look, Touch Buttons for Jump/Break/Place/Inventory.</p>
+                <p><strong>Laptop</strong>: E for 2x2 Crafting. Right Click Crafting Table for 3x3.</p>
+                <p><strong>Mobile</strong>: INV for 2x2. Tap PLACE on Crafting Table for 3x3.</p>
             </div>
         </div>
     </div>
