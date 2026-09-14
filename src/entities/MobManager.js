@@ -1,6 +1,6 @@
 /**
  * MobManager.js
- * Controls detailed Sheep and Zombies with procedural groans/bleats,
+ * Controls detailed Sheep and Zombies with procedural/file-based audio,
  * Minecraft head features, pathfinding, and fatal player damage.
  */
 
@@ -245,8 +245,13 @@ export class MobManager {
             mob.bodyMesh.material = this.materials.hitFlash;
         }
 
+        // Trigger appropriate audio based on survival/death
         if (mob.isZombie && this.soundManager) {
-            this.soundManager.playZombieGroan();
+            if (mob.health <= 0) {
+                this.soundManager.playZombieDeath();
+            } else {
+                this.soundManager.playZombieHurt();
+            }
         } else if (!mob.isZombie && this.soundManager) {
             this.soundManager.playSheepBaa();
         }
@@ -260,7 +265,7 @@ export class MobManager {
             this.scene.remove(mob.group);
             this.mobs = this.mobs.filter(m => m !== mob);
             this.zombies = this.zombies.filter(z => z !== mob);
-            this.hitMeshes = this.hitMeshes.filter(m => m.userData.parentMob !== mobGroup);
+            this.hitMeshes = this.hitMeshes.filter(m => m !== hitObject && m.userData.parentMob !== mobGroup);
         }
     }
 
@@ -331,10 +336,12 @@ export class MobManager {
         for (let i = this.zombies.length - 1; i >= 0; i--) {
             const z = this.zombies[i];
 
+            // Burn in daylight
             if (!isNight) {
                 z.health -= delta * 5;
                 z.bodyMesh.material = this.materials.zombieBurn;
                 if (z.health <= 0) {
+                    if (this.soundManager) this.soundManager.playZombieDeath();
                     this.scene.remove(z.group);
                     this.hitMeshes = this.hitMeshes.filter(m => m.userData.parentMob !== z.group);
                     this.zombies.splice(i, 1);
@@ -379,7 +386,6 @@ export class MobManager {
                             this.soundManager.playPlayerHurt();
                             this.soundManager.playZombieGroan();
                         }
-                        // Attack directly causing fatal damage
                         this.player.takeDamage(4);
                     }
                 }
