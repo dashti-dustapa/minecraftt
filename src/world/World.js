@@ -3,7 +3,7 @@
  * Voxel storage, terrain generation, trees, ore distribution, and torch lighting.
  */
 
-import * as THREE from 'three';
+const THREE = window.THREE;
 import { WORLD_SIZE, SEA_LEVEL, BLOCK, BLOCK_DEFS } from '../core/Constants.js';
 
 export class World {
