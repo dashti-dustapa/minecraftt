@@ -1,7 +1,6 @@
 /**
  * Engine.js
- * Master game engine coordinator: Three.js setup, celestial cycle, cross-platform inputs,
- * HUD/Survival stats, and inventory/crafting management.
+ * Master game engine coordinator with Mob integration.
  */
 
 const THREE = window.THREE;
@@ -11,6 +10,7 @@ import { TextureManager } from '../textures/TextureManager.js';
 import { World } from '../world/World.js';
 import { Player } from '../player/Player.js';
 import { Interaction } from '../player/Interaction.js';
+import { MobManager } from '../entities/MobManager.js';
 
 export class Engine {
     constructor() {
@@ -58,7 +58,6 @@ export class Engine {
         this.sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
         this.scene.add(this.sunLight);
 
-        // Sun & Moon
         this.celestialPivot = new THREE.Group();
         this.scene.add(this.celestialPivot);
 
@@ -84,6 +83,7 @@ export class Engine {
         this.world = new World(this.scene, this.textureManager);
         this.player = new Player(this.camera, this.world);
         this.interaction = new Interaction(this.scene, this.camera, this.world, this.textureManager);
+        this.mobManager = new MobManager(this.scene, this.world, this.player);
 
         this.player.onDamage = () => {
             const flash = document.getElementById('damage-flash');
@@ -100,9 +100,9 @@ export class Engine {
         this.selectedHotbarIndex = 0;
         this.hotbarItems = [0, 1, 2, 3, 4, 5, 6, 7, 8];
         this.mainInventory = new Array(27).fill(null);
-        this.mainInventory[0] = 9; // Oak Log
+        this.mainInventory[0] = 9;
         this.mainInventory[1] = 9;
-        this.mainInventory[2] = 4; // Oak Planks
+        this.mainInventory[2] = 4;
 
         this.craftGrid = [null, null, null, null];
         this.craftOutput = null;
@@ -154,9 +154,9 @@ export class Engine {
         const filledCount = this.craftGrid.filter(x => x !== null).length;
 
         if (filledCount === 1 && this.craftGrid.includes(9)) {
-            this.craftOutput = 4; // 1 Log -> 4 Planks
+            this.craftOutput = 4;
         } else if (filledCount === 4 && this.craftGrid.every(x => x === 4)) {
-            this.craftOutput = 10; // 4 Planks -> 1 Crafting Table
+            this.craftOutput = 10;
         }
         this.renderInventoryUI();
     }
@@ -327,7 +327,6 @@ export class Engine {
             this.player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.player.pitch));
         });
 
-        // Mobile Camera Look Touch
         this.cameraTouchId = null;
         this.lastTouchX = 0;
         this.lastTouchY = 0;
@@ -368,7 +367,6 @@ export class Engine {
             }
         });
 
-        // Touch Virtual D-Pad
         const bindTouch = (id, key) => {
             const el = document.getElementById(id);
             el.addEventListener('touchstart', (e) => { e.preventDefault(); this.keys[key] = true; });
@@ -384,7 +382,7 @@ export class Engine {
 
         document.getElementById('btn-break').addEventListener('touchstart', (e) => {
             e.preventDefault();
-            this.handleBreak();
+            this.handleAttackOrBreak();
         });
 
         document.getElementById('btn-place').addEventListener('touchstart', (e) => {
@@ -392,7 +390,6 @@ export class Engine {
             this.handlePlace();
         });
 
-        // Desktop Keyboard Controls
         window.addEventListener('keydown', (e) => {
             if (e.code === 'KeyE') {
                 this.toggleInventory();
@@ -417,14 +414,27 @@ export class Engine {
 
         window.addEventListener('mousedown', (e) => {
             if (!this.isLocked || this.isInventoryOpen) return;
-            if (e.button === 0) this.handleBreak();
+            if (e.button === 0) this.handleAttackOrBreak();
             else if (e.button === 2) this.handlePlace();
         });
 
         window.addEventListener('contextmenu', e => e.preventDefault());
     }
 
-    handleBreak() {
+    handleAttackOrBreak() {
+        // Raycast to check if player hits a mob first
+        const raycaster = new THREE.Raycaster();
+        raycaster.far = 4.5;
+        raycaster.setFromCamera({ x: 0, y: 0 }, this.camera);
+
+        const mobHits = raycaster.intersectObjects(this.mobManager.getHitMeshes(), false);
+        if (mobHits.length > 0) {
+            this.interaction.triggerSwing();
+            this.mobManager.hitMob(mobHits[0].object, this.player.pos);
+            return;
+        }
+
+        // Otherwise break regular block
         const removedTypeId = this.interaction.breakBlock();
         if (removedTypeId !== null) {
             const freeSlot = this.mainInventory.indexOf(null);
@@ -445,7 +455,6 @@ export class Engine {
         const delta = Math.min((time - this.prevTime) / 1000, 0.1);
         this.prevTime = time;
 
-        // Day/Night celestial cycle
         this.dayTime = (this.dayTime + delta * 0.005) % 1.0;
         const sunAngle = this.dayTime * Math.PI * 2;
         this.celestialPivot.rotation.z = sunAngle;
@@ -476,7 +485,7 @@ export class Engine {
                 this.scene.fog.color.lerp(this.skyColorNight, delta * 3);
                 this.ambientLight.intensity = 0.22;
                 this.sunLight.intensity = 0.12;
-                document.getElementById('debug-time').innerText = "Time: Night";
+                document.getElementById('debug-time').innerText = "Time: Night (Monsters Active)";
             }
         }
 
@@ -487,7 +496,6 @@ export class Engine {
             this.player.pos.z + 40
         );
 
-        // FPS
         this.frameCount++;
         this.fpsTimer += delta;
         if (this.fpsTimer >= 1.0) {
@@ -501,6 +509,7 @@ export class Engine {
         if (isActive) {
             const isMoving = this.player.update(delta, this.keys, !!this.keys['ShiftLeft'], !!this.keys['Space']);
             this.interaction.update(delta, isMoving, this.player.isGrounded);
+            this.mobManager.update(delta, this.dayTime);
         } else {
             this.interaction.selectionBox.visible = false;
         }
