@@ -1,8 +1,7 @@
 /**
  * Engine.js
  * Master game engine coordinator with procedural Web Audio,
- * particle break dynamics, graphical 2D item icons, 3x3 Crafting,
- * Mob Manager, and Save/Load persistence.
+ * You Died death screen & respawning, and Mob integration.
  */
 
 const THREE = window.THREE;
@@ -29,6 +28,7 @@ export class Engine {
 
         this.initThree();
         this.initSystems();
+        this.initDeathScreen();
         this.initInventoryAndCrafting();
         this.initInputs();
         this.initHUD();
@@ -95,16 +95,12 @@ export class Engine {
         this.world = new World(this.scene, this.textureManager);
         this.player = new Player(this.camera, this.world);
 
-        if (!this.player.pos) {
-            this.player.pos = this.player.position || this.camera.position;
-        }
-        if (!this.player.position) {
-            this.player.position = this.player.pos;
-        }
+        if (!this.player.pos) this.player.pos = this.player.position || this.camera.position;
+        if (!this.player.position) this.player.position = this.player.pos;
 
         this.particleManager = new ParticleManager(this.scene);
         this.interaction = new Interaction(this.scene, this.camera, this.world, this.textureManager);
-        this.mobManager = new MobManager(this.scene, this.world, this.player);
+        this.mobManager = new MobManager(this.scene, this.world, this.player, this.soundManager);
         this.saveManager = new SaveManager();
 
         this.player.onDamage = () => {
@@ -118,6 +114,48 @@ export class Engine {
         this.player.onStatsChange = () => {
             this.renderHUD();
         };
+
+        this.player.onDeath = () => {
+            if (!this.isTouchDevice) document.exitPointerLock();
+            if (this.deathScreenEl) {
+                this.deathScreenEl.style.display = 'flex';
+            }
+        };
+    }
+
+    initDeathScreen() {
+        let deathEl = document.getElementById('death-screen');
+        if (!deathEl) {
+            deathEl = document.createElement('div');
+            deathEl.id = 'death-screen';
+            deathEl.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                background: rgba(140, 0, 0, 0.75); display: none; flex-direction: column;
+                justify-content: center; align-items: center; z-index: 99999;
+                font-family: 'Minecraft', monospace, sans-serif; text-shadow: 2px 2px #000;
+            `;
+            deathEl.innerHTML = `
+                <h1 style="color:#ffffff; font-size:42px; margin-bottom:15px; letter-spacing:2px;">You Died!</h1>
+                <p style="color:#e0e0e0; font-size:16px; margin-bottom:25px;">You succumbed to the dark...</p>
+                <button id="btn-respawn" style="
+                    padding: 12px 28px; font-size: 18px; font-weight: bold; background: #2e7d32;
+                    color: white; border: 2px solid #ffffff; cursor: pointer; border-radius: 4px;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.5); outline: none;
+                ">Respawn</button>
+            `;
+            document.body.appendChild(deathEl);
+        }
+        this.deathScreenEl = deathEl;
+
+        const respawnBtn = document.getElementById('btn-respawn');
+        if (respawnBtn) {
+            respawnBtn.addEventListener('click', () => {
+                this.player.respawn();
+                this.deathScreenEl.style.display = 'none';
+                this.renderHUD();
+                if (!this.isTouchDevice) this.canvas.requestPointerLock();
+            });
+        }
     }
 
     getPlayerPosition() {
@@ -291,9 +329,7 @@ export class Engine {
         });
 
         const out = document.getElementById('craft-out-2x2');
-        if (out) {
-            out.innerHTML = this.getItemIconHTML(this.craftOutput2x2, 28);
-        }
+        if (out) out.innerHTML = this.getItemIconHTML(this.craftOutput2x2, 28);
 
         this.renderInventoryGrid('inv-main-grid-2x2', 'inv-hotbar-grid-2x2', (item, i) => {
             for (let c = 0; c < 4; c++) {
@@ -315,9 +351,7 @@ export class Engine {
         });
 
         const out = document.getElementById('craft-out-3x3');
-        if (out) {
-            out.innerHTML = this.getItemIconHTML(this.craftOutput3x3, 28);
-        }
+        if (out) out.innerHTML = this.getItemIconHTML(this.craftOutput3x3, 28);
 
         this.renderInventoryGrid('inv-main-grid-3x3', 'inv-hotbar-grid-3x3', (item, i) => {
             for (let c = 0; c < 9; c++) {
@@ -402,6 +436,7 @@ export class Engine {
     }
 
     toggleInventory2x2() {
+        if (this.player.isDead) return;
         if (this.activeModal === 'inv') {
             this.closeModals();
         } else {
@@ -414,6 +449,7 @@ export class Engine {
     }
 
     openCraftingTable3x3() {
+        if (this.player.isDead) return;
         this.closeModals();
         this.activeModal = 'table';
         if (!this.isTouchDevice) document.exitPointerLock();
@@ -425,7 +461,7 @@ export class Engine {
         this.activeModal = null;
         document.getElementById('inventory-screen').classList.add('hidden');
         document.getElementById('crafting-table-screen').classList.add('hidden');
-        if (!this.isTouchDevice) this.canvas.requestPointerLock();
+        if (!this.isTouchDevice && !this.player.isDead) this.canvas.requestPointerLock();
         this.saveManager.saveGame(this.player, this);
     }
 
@@ -501,7 +537,7 @@ export class Engine {
                     this.activeModal = null;
                     document.getElementById('inventory-screen').classList.add('hidden');
                     document.getElementById('crafting-table-screen').classList.add('hidden');
-                } else if (!this.activeModal) {
+                } else if (!this.activeModal && !this.player.isDead) {
                     pauseScreen.classList.remove('hidden');
                     this.saveManager.saveGame(this.player, this);
                 }
@@ -509,7 +545,7 @@ export class Engine {
         });
 
         document.addEventListener('mousemove', (e) => {
-            if (!this.isLocked || this.activeModal || this.isTouchDevice) return;
+            if (!this.isLocked || this.activeModal || this.isTouchDevice || this.player.isDead) return;
             this.player.yaw -= e.movementX * 0.0022;
             this.player.pitch -= e.movementY * 0.0022;
             this.player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.player.pitch));
@@ -521,7 +557,7 @@ export class Engine {
 
         window.addEventListener('touchstart', (e) => {
             this.soundManager.initContext();
-            if (!this.isGameRunning || this.activeModal) return;
+            if (!this.isGameRunning || this.activeModal || this.player.isDead) return;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 if (t.clientX > window.innerWidth * 0.35 && this.cameraTouchId === null) {
@@ -533,7 +569,7 @@ export class Engine {
         }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
-            if (!this.isGameRunning || this.activeModal) return;
+            if (!this.isGameRunning || this.activeModal || this.player.isDead) return;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
                 if (t.identifier === this.cameraTouchId) {
@@ -588,6 +624,7 @@ export class Engine {
         }
 
         window.addEventListener('keydown', (e) => {
+            if (this.player.isDead) return;
             if (e.code === 'KeyE') {
                 this.toggleInventory2x2();
                 return;
@@ -608,14 +645,14 @@ export class Engine {
         window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
 
         window.addEventListener('wheel', (e) => {
-            if (!this.isLocked || this.activeModal) return;
+            if (!this.isLocked || this.activeModal || this.player.isDead) return;
             if (e.deltaY > 0) this.selectHotbarSlot((this.selectedHotbarIndex + 1) % 9);
             else this.selectHotbarSlot((this.selectedHotbarIndex - 1 + 9) % 9);
         });
 
         window.addEventListener('mousedown', (e) => {
             this.soundManager.initContext();
-            if (!this.isLocked || this.activeModal) return;
+            if (!this.isLocked || this.activeModal || this.player.isDead) return;
             if (e.button === 0) this.handleAttackOrBreak();
             else if (e.button === 2) this.handlePlaceOrInteract();
         });
@@ -624,6 +661,7 @@ export class Engine {
     }
 
     handleAttackOrBreak() {
+        if (this.player.isDead) return;
         const heldId = this.hotbarItems[this.selectedHotbarIndex];
         const heldDef = (heldId !== null && BLOCK_DEFS[heldId]) ? BLOCK_DEFS[heldId] : BLOCK_DEFS[0];
         const weaponDamage = heldDef.attackDamage || 4;
@@ -648,7 +686,6 @@ export class Engine {
             if (removedTypeId !== null) {
                 this.soundManager.playBreak();
 
-                // Spawn block break particles at center of broken block
                 if (this.particleManager) {
                     this.particleManager.spawnBreakParticles(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5, removedTypeId);
                 }
@@ -663,6 +700,7 @@ export class Engine {
     }
 
     handlePlaceOrInteract() {
+        if (this.player.isDead) return;
         if (this.interaction && this.interaction.targetHit) {
             const hitBlockData = this.interaction.targetHit.object.userData;
             if (hitBlockData.typeId === BLOCK.CRAFTING_TABLE) {
@@ -697,7 +735,6 @@ export class Engine {
 
         const playerPos = this.getPlayerPosition();
 
-        // Day/Night celestial cycle
         this.dayTime = (this.dayTime + delta * 0.005) % 1.0;
         const sunAngle = this.dayTime * Math.PI * 2;
         this.celestialPivot.rotation.z = sunAngle;
@@ -758,12 +795,11 @@ export class Engine {
 
         const isActive = this.isTouchDevice ? (this.isGameRunning && !this.activeModal) : (this.isLocked && !this.activeModal);
 
-        if (isActive) {
+        if (isActive || this.player.isDead) {
             try {
                 const isMoving = this.player.update(delta, this.keys, !!this.keys['ShiftLeft'], !!this.keys['Space']);
 
-                // Footstep sound check
-                if (isMoving && Math.abs(this.player.velocity.y) < 1.0) {
+                if (isMoving && Math.abs(this.player.velocity.y) < 1.0 && !this.player.isDead) {
                     this.stepTimer += delta;
                     if (this.stepTimer >= 0.34) {
                         this.stepTimer = 0;
@@ -783,7 +819,6 @@ export class Engine {
             this.interaction.selectionBox.visible = false;
         }
 
-        // Always update particle animations and life cycle
         if (this.particleManager) {
             this.particleManager.update(delta);
         }
