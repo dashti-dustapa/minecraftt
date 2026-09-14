@@ -1,7 +1,8 @@
 /**
  * Engine.js
  * Master game engine coordinator with procedural Web Audio,
- * You Died death screen & respawning, and Mob integration.
+ * You Died death screen, 3D Minecraft clouds, night stars,
+ * dynamic torch lights, and mob integration.
  */
 
 const THREE = window.THREE;
@@ -25,8 +26,10 @@ export class Engine {
 
         this.soundManager = new SoundManager();
         this.stepTimer = 0;
+        this.torchLights = new Map(); // Store torch PointLights: key "x,y,z" => PointLight
 
         this.initThree();
+        this.initEnvironment();
         this.initSystems();
         this.initDeathScreen();
         this.initInventoryAndCrafting();
@@ -88,6 +91,57 @@ export class Engine {
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
+    }
+
+    initEnvironment() {
+        // 1. 3D Procedural Minecraft Clouds
+        this.cloudsGroup = new THREE.Group();
+        const cloudMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.65,
+            depthWrite: false
+        });
+
+        const cloudGeom = new THREE.BoxGeometry(8, 2, 8);
+        for (let x = -40; x <= 40; x += 10) {
+            for (let z = -40; z <= 40; z += 10) {
+                if (Math.random() > 0.35) {
+                    const cMesh = new THREE.Mesh(cloudGeom, cloudMat);
+                    cMesh.position.set(x + (Math.random() * 4), 28, z + (Math.random() * 4));
+                    cMesh.scale.set(1 + Math.random() * 0.8, 1, 1 + Math.random() * 0.8);
+                    this.cloudsGroup.add(cMesh);
+                }
+            }
+        }
+        this.scene.add(this.cloudsGroup);
+
+        // 2. Twinkling Night Stars
+        const starCount = 350;
+        const starGeom = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+
+        for (let i = 0; i < starCount * 3; i += 3) {
+            const u = Math.random();
+            const v = Math.random();
+            const theta = u * 2.0 * Math.PI;
+            const phi = Math.acos(2.0 * v - 1.0);
+            const r = 240;
+
+            starPositions[i] = r * Math.sin(phi) * Math.cos(theta);
+            starPositions[i + 1] = Math.abs(r * Math.cos(phi)); // Upper dome
+            starPositions[i + 2] = r * Math.sin(phi) * Math.sin(theta);
+        }
+
+        starGeom.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        this.starMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 1.8,
+            transparent: true,
+            opacity: 0.0
+        });
+        this.starField = new THREE.Points(starGeom, this.starMaterial);
+        this.scene.add(this.starField);
     }
 
     initSystems() {
@@ -686,6 +740,14 @@ export class Engine {
             if (removedTypeId !== null) {
                 this.soundManager.playBreak();
 
+                // If removing a torch, remove its dynamic light
+                const key = `${pos.x},${pos.y},${pos.z}`;
+                if (this.torchLights.has(key)) {
+                    const light = this.torchLights.get(key);
+                    this.scene.remove(light);
+                    this.torchLights.delete(key);
+                }
+
                 if (this.particleManager) {
                     this.particleManager.spawnBreakParticles(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5, removedTypeId);
                 }
@@ -722,6 +784,15 @@ export class Engine {
             const placed = this.interaction.placeBlock(blockId, this.player);
             if (placed) {
                 this.soundManager.playPlace();
+
+                // Dynamic Torch Light with warm glow
+                if (blockId === BLOCK.TORCH || blockId === 5) {
+                    const torchLight = new THREE.PointLight(0xffa333, 1.8, 14, 1.2);
+                    torchLight.position.set(px + 0.5, py + 0.7, pz + 0.5);
+                    this.scene.add(torchLight);
+                    this.torchLights.set(`${px},${py},${pz}`, torchLight);
+                }
+
                 this.saveManager.recordPlacement(px, py, pz, blockId);
             }
         }
@@ -735,6 +806,17 @@ export class Engine {
 
         const playerPos = this.getPlayerPosition();
 
+        // 1. Move 3D Clouds slowly across sky
+        if (this.cloudsGroup) {
+            this.cloudsGroup.position.x = (this.cloudsGroup.position.x + delta * 1.2) % 60;
+        }
+
+        // 2. Torch Flame Dynamic Light Flicker
+        this.torchLights.forEach(light => {
+            light.intensity = 1.6 + (Math.random() * 0.35);
+        });
+
+        // Day/Night celestial cycle
         this.dayTime = (this.dayTime + delta * 0.005) % 1.0;
         const sunAngle = this.dayTime * Math.PI * 2;
         this.celestialPivot.rotation.z = sunAngle;
@@ -749,6 +831,7 @@ export class Engine {
             this.scene.background.lerp(this.skyColorWater, delta * 4);
             this.scene.fog.color.lerp(this.skyColorWater, delta * 4);
             this.scene.fog.density = 0.08;
+            if (this.starMaterial) this.starMaterial.opacity = 0;
         } else {
             this.scene.fog.density = 0.018;
             if (sunHeight > 0.2) {
@@ -756,6 +839,7 @@ export class Engine {
                 this.scene.fog.color.lerp(this.skyColorDay, delta * 3);
                 this.ambientLight.intensity = 0.65;
                 this.sunLight.intensity = 0.85;
+                if (this.starMaterial) this.starMaterial.opacity = 0;
                 const dbgTime = document.getElementById('debug-time');
                 if (dbgTime) dbgTime.innerText = "Time: Day";
             } else if (sunHeight > -0.15) {
@@ -763,6 +847,7 @@ export class Engine {
                 this.scene.fog.color.lerp(this.skyColorSunset, delta * 3);
                 this.ambientLight.intensity = 0.45;
                 this.sunLight.intensity = 0.45;
+                if (this.starMaterial) this.starMaterial.opacity = 0.3;
                 const dbgTime = document.getElementById('debug-time');
                 if (dbgTime) dbgTime.innerText = "Time: Sunset";
             } else {
@@ -770,6 +855,7 @@ export class Engine {
                 this.scene.fog.color.lerp(this.skyColorNight, delta * 3);
                 this.ambientLight.intensity = 0.22;
                 this.sunLight.intensity = 0.12;
+                if (this.starMaterial) this.starMaterial.opacity = 0.85;
                 const dbgTime = document.getElementById('debug-time');
                 if (dbgTime) dbgTime.innerText = "Time: Night (Monsters Active)";
             }
@@ -777,6 +863,7 @@ export class Engine {
 
         if (playerPos) {
             this.celestialPivot.position.copy(playerPos);
+            if (this.starField) this.starField.position.copy(playerPos);
             this.sunLight.position.set(
                 playerPos.x - Math.sin(sunAngle) * 60,
                 playerPos.y + Math.cos(sunAngle) * 60,
