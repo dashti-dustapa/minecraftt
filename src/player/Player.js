@@ -1,7 +1,7 @@
 /**
  * Player.js
  * First-person kinematic controller with full 3D Voxel AABB Collision,
- * gravity, stepping, jumping, and camera synchronization.
+ * gravity, jumping, camera synchronization, and void respawning.
  */
 
 import * as THREE from 'three';
@@ -20,9 +20,9 @@ export class Player {
         this.camera = camera;
         this.world = world;
 
-        // Position & Dimensions
+        // Position & Coordinates
         this.pos = new THREE.Vector3(0, 18, 0);
-        this.position = this.pos;
+        this.position = this.pos; // Alias for engine safety
         this.velocity = new THREE.Vector3(0, 0, 0);
 
         this.height = PLAYER_HEIGHT;
@@ -33,7 +33,7 @@ export class Player {
         this.yaw = 0;
         this.pitch = 0;
 
-        // States
+        // Physical States
         this.isGrounded = false;
         this.headSubmerged = false;
 
@@ -55,12 +55,11 @@ export class Player {
     isSolidBlock(x, y, z) {
         if (!this.world) return false;
         const block = this.world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
-        // Block is solid if exists and not water/torch/empty
         if (block === null || block === undefined) return false;
         if (typeof block === 'object') {
             return block.solid !== false;
         }
-        // If block is an ID number (water=7, torch=5 are non-solid)
+        // Block IDs: water=7 and torch=5 are non-solid
         return block !== 7 && block !== 5;
     }
 
@@ -120,7 +119,7 @@ export class Player {
 
         for (let x = Math.floor(p.x - r); x <= Math.floor(p.x + r); x++) {
             for (let z = Math.floor(p.z - r); z <= Math.floor(p.z + r); z++) {
-                // Check ceiling hit
+                // Ceiling collision
                 if (displacement.y > 0) {
                     const blockY = Math.floor(currentHeadY);
                     if (this.isSolidBlock(x, blockY, z)) {
@@ -128,7 +127,7 @@ export class Player {
                         this.velocity.y = 0;
                     }
                 }
-                // Check landing on ground
+                // Floor collision (Landing on ground)
                 else if (displacement.y < 0) {
                     const blockY = Math.floor(currentFeetY);
                     if (this.isSolidBlock(x, blockY, z)) {
@@ -147,7 +146,7 @@ export class Player {
         this.camera.rotation.y = this.yaw;
         this.camera.rotation.x = this.pitch;
 
-        // Handle WASD keyboard inputs
+        // Handle movement inputs
         const moveDir = new THREE.Vector3();
         if (this.isDown(keys, 'KeyW') || this.isDown(keys, 'ArrowUp')) moveDir.z -= 1;
         if (this.isDown(keys, 'KeyS') || this.isDown(keys, 'ArrowDown')) moveDir.z += 1;
@@ -164,7 +163,7 @@ export class Player {
         this.velocity.x = moveDir.x * speed;
         this.velocity.z = moveDir.z * speed;
 
-        // Apply gravity and jumping
+        // Gravity & Jump Physics
         const jumpPressed = isJumping || this.isDown(keys, 'Space');
 
         if (!this.isGrounded) {
@@ -177,18 +176,19 @@ export class Player {
             }
         }
 
-        // Apply movement with full collision detection
+        // Apply movement displacement and world collisions
         const displacement = this.velocity.clone().multiplyScalar(delta);
         this.collideWithWorld(displacement);
 
-        // Update camera position to follow player body
+        // Void Fall Respawn: If falling into the void below -30, teleport back up
+        if (this.pos.y < -30) {
+            this.pos.set(0, 20, 0);
+            this.velocity.set(0, 0, 0);
+        }
+
+        // Camera tracks the player eyes
         this.camera.position.copy(this.pos);
 
         return isMoving;
     }
 }
-// Void Fall Respawn
-        if (this.pos.y < -30) {
-            this.pos.set(0, 20, 0); // Teleport back to sky
-            this.velocity.set(0, 0, 0);
-        }
