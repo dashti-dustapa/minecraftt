@@ -187,3 +187,8 @@ export class Player {
         return isMoving;
     }
 }
+// Void Fall Respawn
+        if (this.pos.y < -30) {
+            this.pos.set(0, 20, 0); // Teleport back to sky
+            this.velocity.set(0, 0, 0);
+        }
