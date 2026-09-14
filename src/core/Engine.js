@@ -87,9 +87,9 @@ export class Engine {
     initSystems() {
         this.textureManager = new TextureManager();
         this.world = new World(this.scene, this.textureManager);
-        this.player = new Player(this.camera, this.world);
-
-        // Bridge position naming difference (pos vs position)
+this.player = new Player(this.camera, this.world);
+        
+        // Link player position directly to camera position if pos is missing
         if (!this.player.pos) {
             this.player.pos = this.player.position || this.camera.position;
         }
