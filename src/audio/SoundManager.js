@@ -1,25 +1,25 @@
 /**
  * SoundManager.js
- * Multi-track audio engine reading official Minecraft OGG files directly from root.
+ * Multi-track audio engine reading official Minecraft OGG files from the /sounds folder.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
 
-        // Direct root paths matching your uploaded files
+        // Clean organized paths directly from the /sounds folder
         this.zombieAudio = {
             idle: [
-                './Zombie_idle1.ogg',
-                './Zombie_idle2.ogg',
-                './Zombie_idle3.ogg'
+                './sounds/Zombie_idle1.ogg',
+                './sounds/Zombie_idle2.ogg',
+                './sounds/Zombie_idle3.ogg'
             ],
             hurt: [
-                './Zombie_hurt1.ogg',
-                './Zombie_hurt2.ogg'
+                './sounds/Zombie_hurt1.ogg',
+                './sounds/Zombie_hurt2.ogg'
             ],
             death: [
-                './Zombie_death.ogg'
+                './sounds/Zombie_death.ogg'
             ]
         };
     }
