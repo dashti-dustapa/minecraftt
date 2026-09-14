@@ -1,12 +1,14 @@
 /**
  * SoundManager.js
- * High-volume procedural Web Audio synthesizer with Minecraft-style
- * Zombie groans, Sheep bleats, player hurt, and combat audio.
+ * Synthesizes realistic guttural zombie moans (Hhh-u-r-g-h) using
+ * vocal tract formant filters & breath noise, with custom MP3 support.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
+        // Optionally put a direct link to an MP3 here if you host the file
+        this.customZombieAudioUrl = null; 
     }
 
     initContext() {
@@ -21,34 +23,66 @@ export class SoundManager {
     }
 
     playZombieGroan() {
+        // If an external real MP3 file is assigned, play it directly
+        if (this.customZombieAudioUrl) {
+            const audio = new Audio(this.customZombieAudioUrl);
+            audio.volume = 0.8;
+            audio.play().catch(() => {});
+            return;
+        }
+
         const ctx = this.initContext();
         if (!ctx) return;
 
         const now = ctx.currentTime + 0.01;
+
+        // 1. Vocal Cord Pulse (Deep guttural base rumble)
         const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-
         osc.type = 'sawtooth';
-        // Classic guttural groan pitch modulation
-        osc.frequency.setValueAtTime(80, now);
-        osc.frequency.linearRampToValueAtTime(65, now + 0.4);
-        osc.frequency.linearRampToValueAtTime(90, now + 0.9);
-        osc.frequency.linearRampToValueAtTime(55, now + 1.5);
+        osc.frequency.setValueAtTime(68, now);
+        osc.frequency.linearRampToValueAtTime(54, now + 0.6);
+        osc.frequency.linearRampToValueAtTime(74, now + 1.1);
+        osc.frequency.linearRampToValueAtTime(46, now + 1.8);
 
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(480, now);
+        // 2. Throat Breath Noise (Creates the dry "Hhh" and "Rrrgh" rasp)
+        const bufferSize = Math.floor(ctx.sampleRate * 1.8);
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.45;
+        }
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
 
-        gain.gain.setValueAtTime(0.01, now);
-        gain.gain.linearRampToValueAtTime(0.45, now + 0.25);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+        // 3. Human Vocal Formants (Filters creating "Uuu-r-g-h" vowel resonance)
+        const throatFormant = ctx.createBiquadFilter();
+        throatFormant.type = 'bandpass';
+        throatFormant.frequency.setValueAtTime(320, now);
+        throatFormant.Q.setValueAtTime(4.0, now);
 
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
+        const mouthFormant = ctx.createBiquadFilter();
+        mouthFormant.type = 'bandpass';
+        mouthFormant.frequency.setValueAtTime(760, now);
+        mouthFormant.Q.setValueAtTime(2.8, now);
+
+        const masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0.02, now);
+        masterGain.gain.linearRampToValueAtTime(0.75, now + 0.4); // Inhale gasp "Hhh"
+        masterGain.gain.setValueAtTime(0.65, now + 1.2);          // Deep moan "Bruuuh"
+        masterGain.gain.exponentialRampToValueAtTime(0.001, now + 1.8); // Guttural drop "rgh"
+
+        // Connect nodes
+        osc.connect(throatFormant);
+        noise.connect(mouthFormant);
+
+        throatFormant.connect(masterGain);
+        mouthFormant.connect(masterGain);
+        masterGain.connect(ctx.destination);
 
         osc.start(now);
-        osc.stop(now + 1.5);
+        noise.start(now);
+        osc.stop(now + 1.8);
+        noise.stop(now + 1.8);
     }
 
     playSheepBaa() {
@@ -65,7 +99,6 @@ export class SoundManager {
         osc.frequency.setValueAtTime(260, now);
         osc.frequency.linearRampToValueAtTime(210, now + 0.7);
 
-        // Tremolo LFO for classic goat/sheep vibrato "Baaa"
         lfo.frequency.setValueAtTime(9.5, now);
         lfoGain.gain.setValueAtTime(0.12, now);
         lfo.connect(gain.gain);
@@ -96,7 +129,6 @@ export class SoundManager {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
 
-        // Punchy low Minecraft "oof" grunt
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(190, now);
         osc.frequency.exponentialRampToValueAtTime(55, now + 0.16);
