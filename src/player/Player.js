@@ -1,7 +1,7 @@
 /**
  * Player.js
  * First-person kinematic controller with full 3D Voxel AABB Collision,
- * gravity, jumping, camera synchronization, and void respawning.
+ * formal death states, camera death tilt, and respawn functionality.
  */
 
 import * as THREE from 'three';
@@ -20,30 +20,58 @@ export class Player {
         this.camera = camera;
         this.world = world;
 
-        // Position & Coordinates (Spawns above terrain top at Y=12)
         this.pos = new THREE.Vector3(0, 12, 0);
-        this.position = this.pos; // Alias for engine safety
+        this.position = this.pos;
         this.velocity = new THREE.Vector3(0, 0, 0);
 
         this.height = PLAYER_HEIGHT;
         this.eyeHeight = PLAYER_EYE_HEIGHT;
         this.radius = PLAYER_RADIUS;
 
-        // Viewing angles
         this.yaw = 0;
         this.pitch = 0;
 
-        // Physical States
         this.isGrounded = false;
         this.headSubmerged = false;
 
-        // Survival Vitals
+        // Health & Survival States
         this.health = 20;
         this.hunger = 20;
         this.oxygen = 20;
+        this.isDead = false;
 
         this.onDamage = null;
         this.onStatsChange = null;
+        this.onDeath = null;
+    }
+
+    takeDamage(amount) {
+        if (this.isDead) return;
+
+        this.health = Math.max(0, this.health - amount);
+
+        if (typeof this.onDamage === 'function') this.onDamage();
+        if (typeof this.onStatsChange === 'function') this.onStatsChange();
+
+        if (this.health <= 0) {
+            this.isDead = true;
+            if (typeof this.onDeath === 'function') {
+                this.onDeath();
+            }
+        }
+    }
+
+    respawn() {
+        this.health = 20;
+        this.hunger = 20;
+        this.oxygen = 20;
+        this.isDead = false;
+
+        this.pos.set(0, 12, 0);
+        this.velocity.set(0, 0, 0);
+        this.pitch = 0;
+
+        if (typeof this.onStatsChange === 'function') this.onStatsChange();
     }
 
     isDown(keys, code) {
@@ -56,10 +84,7 @@ export class Player {
         if (!this.world) return false;
         const block = this.world.getBlock(Math.floor(x), Math.floor(y), Math.floor(z));
         if (block === null || block === undefined) return false;
-        if (typeof block === 'object') {
-            return block.solid !== false;
-        }
-        // Block IDs: water=7 and torch=5 are non-solid
+        if (typeof block === 'object') return block.solid !== false;
         return block !== 7 && block !== 5;
     }
 
@@ -67,7 +92,6 @@ export class Player {
         const r = this.radius;
         const p = this.pos;
 
-        // 1. Resolve X Axis Collision
         p.x += displacement.x;
         const minY = p.y - this.eyeHeight + 0.05;
         const maxY = p.y - this.eyeHeight + this.height - 0.05;
@@ -90,7 +114,6 @@ export class Player {
             }
         }
 
-        // 2. Resolve Z Axis Collision
         p.z += displacement.z;
         for (let y = Math.floor(minY); y <= Math.floor(maxY); y++) {
             for (let x = Math.floor(p.x - r); x <= Math.floor(p.x + r); x++) {
@@ -110,7 +133,6 @@ export class Player {
             }
         }
 
-        // 3. Resolve Y Axis Collision (Ground / Ceiling)
         p.y += displacement.y;
         this.isGrounded = false;
 
@@ -119,16 +141,13 @@ export class Player {
 
         for (let x = Math.floor(p.x - r); x <= Math.floor(p.x + r); x++) {
             for (let z = Math.floor(p.z - r); z <= Math.floor(p.z + r); z++) {
-                // Ceiling collision
                 if (displacement.y > 0) {
                     const blockY = Math.floor(currentHeadY);
                     if (this.isSolidBlock(x, blockY, z)) {
                         p.y = blockY - (this.height - this.eyeHeight) - 0.001;
                         this.velocity.y = 0;
                     }
-                }
-                // Floor collision (Landing on top of block)
-                else if (displacement.y < 0) {
+                } else if (displacement.y < 0) {
                     const blockY = Math.floor(currentFeetY);
                     if (this.isSolidBlock(x, blockY, z)) {
                         p.y = blockY + 1 + this.eyeHeight;
@@ -141,12 +160,18 @@ export class Player {
     }
 
     update(delta, keys, isSprinting, isJumping) {
-        // Sync rotation with camera
+        if (this.isDead) {
+            // Freeze movement and show death tilt
+            this.camera.rotation.set(0, 0, 0);
+            this.camera.rotation.y = this.yaw;
+            this.camera.rotation.z = 0.55; // Red screen fall tilt
+            return false;
+        }
+
         this.camera.rotation.set(0, 0, 0);
         this.camera.rotation.y = this.yaw;
         this.camera.rotation.x = this.pitch;
 
-        // Handle movement inputs
         const moveDir = new THREE.Vector3();
         if (this.isDown(keys, 'KeyW') || this.isDown(keys, 'ArrowUp')) moveDir.z -= 1;
         if (this.isDown(keys, 'KeyS') || this.isDown(keys, 'ArrowDown')) moveDir.z += 1;
@@ -163,7 +188,6 @@ export class Player {
         this.velocity.x = moveDir.x * speed;
         this.velocity.z = moveDir.z * speed;
 
-        // Gravity & Jump Physics
         const jumpPressed = isJumping || this.isDown(keys, 'Space');
 
         if (!this.isGrounded) {
@@ -176,19 +200,14 @@ export class Player {
             }
         }
 
-        // Apply movement displacement and world collisions
         const displacement = this.velocity.clone().multiplyScalar(delta);
         this.collideWithWorld(displacement);
 
-        // Void Fall Respawn: If falling into the void below -30, teleport back up
         if (this.pos.y < -30) {
-            this.pos.set(0, 12, 0);
-            this.velocity.set(0, 0, 0);
+            this.takeDamage(20);
         }
 
-        // Camera tracks the player eyes
         this.camera.position.copy(this.pos);
-
         return isMoving;
     }
 }
