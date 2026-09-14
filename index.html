@@ -9,7 +9,7 @@
     <!-- Global Three.js Bundle -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    <!-- ES Module Map for src imports -->
+    <!-- ES Module Importmap for src/ imports -->
     <script type="importmap">
     {
         "imports": {
@@ -19,12 +19,15 @@
     </script>
 </head>
 <body>
+    <!-- 3D WebGL Canvas -->
     <canvas id="game-canvas"></canvas>
 
+    <!-- Visual Overlays -->
     <div id="damage-flash"></div>
     <div id="underwater-tint"></div>
     <div id="crosshair">+</div>
 
+    <!-- Telemetry & Debug HUD -->
     <div id="debug-info">
         <div id="debug-fps">FPS: 0</div>
         <div id="debug-pos">XYZ: 0.0 / 0.0 / 0.0</div>
@@ -32,6 +35,7 @@
         <div id="debug-time">Time: Day</div>
     </div>
 
+    <!-- Player HUD Container -->
     <div id="hud-container">
         <div id="status-bars">
             <div id="health-bar"></div>
@@ -39,6 +43,7 @@
             <div id="hunger-bar"></div>
         </div>
 
+        <!-- 9-Slot Hotbar -->
         <div id="hotbar">
             <div class="hotbar-slot active" data-slot="0"></div>
             <div class="hotbar-slot" data-slot="1"></div>
@@ -52,17 +57,17 @@
         </div>
     </div>
 
-    <!-- Start / Pause Screen -->
+    <!-- Start / Title Screen (Supports both btn-play and btn-singleplayer) -->
     <div id="pause-screen">
         <div class="menu-box">
             <h1>MINECRAFT</h1>
-            <p>Click Play to Enter World</p>
+            <p>Click Play to start placing & breaking blocks</p>
             <button id="btn-play" class="mc-btn">Play</button>
             <button id="btn-singleplayer" class="mc-btn" style="display:none;">Singleplayer</button>
         </div>
     </div>
 
-    <!-- 2x2 Crafting Inventory Modal -->
+    <!-- 2x2 Survival Inventory Modal -->
     <div id="inventory-screen" class="hidden">
         <div class="mc-modal-box">
             <div class="modal-header">
@@ -131,7 +136,7 @@
         </div>
     </div>
 
-    <!-- Module Engine Bootstrapper -->
+    <!-- Application Initialization -->
     <script type="module">
         import { Engine } from './src/core/Engine.js';
         window.addEventListener('DOMContentLoaded', () => {
