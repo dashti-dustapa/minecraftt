@@ -1,8 +1,8 @@
 /**
  * Engine.js
  * Master game engine coordinator with procedural Web Audio,
- * You Died death screen, 3D Minecraft clouds, night stars,
- * dynamic torch lights, and mob integration.
+ * responsive Minecraft UI/inventory modals, robust break/place interactions,
+ * and mob management.
  */
 
 import * as THREE from 'three';
@@ -26,7 +26,7 @@ export class Engine {
 
         this.soundManager = new SoundManager();
         this.stepTimer = 0;
-        this.torchLights = new Map(); // Store torch PointLights: key "x,y,z" => PointLight
+        this.torchLights = new Map();
 
         this.initThree();
         this.initEnvironment();
@@ -94,7 +94,6 @@ export class Engine {
     }
 
     initEnvironment() {
-        // 1. 3D Procedural Minecraft Clouds
         this.cloudsGroup = new THREE.Group();
         const cloudMat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
@@ -116,7 +115,6 @@ export class Engine {
         }
         this.scene.add(this.cloudsGroup);
 
-        // 2. Twinkling Night Stars
         const starCount = 350;
         const starGeom = new THREE.BufferGeometry();
         const starPositions = new Float32Array(starCount * 3);
@@ -129,7 +127,7 @@ export class Engine {
             const r = 240;
 
             starPositions[i] = r * Math.sin(phi) * Math.cos(theta);
-            starPositions[i + 1] = Math.abs(r * Math.cos(phi)); // Upper dome
+            starPositions[i + 1] = Math.abs(r * Math.cos(phi));
             starPositions[i + 2] = r * Math.sin(phi) * Math.sin(theta);
         }
 
@@ -170,7 +168,7 @@ export class Engine {
         };
 
         this.player.onDeath = () => {
-            if (!this.isTouchDevice) document.exitPointerLock();
+            if (!this.isTouchDevice && document.pointerLockElement) document.exitPointerLock();
             if (this.deathScreenEl) {
                 this.deathScreenEl.style.display = 'flex';
             }
@@ -189,12 +187,11 @@ export class Engine {
                 font-family: 'Minecraft', monospace, sans-serif; text-shadow: 2px 2px #000;
             `;
             deathEl.innerHTML = `
-                <h1 style="color:#ffffff; font-size:42px; margin-bottom:15px; letter-spacing:2px;">You Died!</h1>
+                <h1 style="color:#ffffff; font-size:42px; margin-bottom:15px;">You Died!</h1>
                 <p style="color:#e0e0e0; font-size:16px; margin-bottom:25px;">You succumbed to the dark...</p>
                 <button id="btn-respawn" style="
                     padding: 12px 28px; font-size: 18px; font-weight: bold; background: #2e7d32;
                     color: white; border: 2px solid #ffffff; cursor: pointer; border-radius: 4px;
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.5); outline: none;
                 ">Respawn</button>
             `;
             document.body.appendChild(deathEl);
@@ -257,18 +254,21 @@ export class Engine {
             });
         });
 
-        document.getElementById('craft-out-2x2').addEventListener('click', () => {
-            if (this.craftOutput2x2 !== null) {
-                const freeSlot = this.mainInventory.indexOf(null);
-                if (freeSlot !== -1) {
-                    this.mainInventory[freeSlot] = this.craftOutput2x2;
-                    for (let c = 0; c < 4; c++) this.craftGrid2x2[c] = null;
-                    this.checkCrafting2x2();
-                    this.soundManager.playPlace();
-                    this.saveManager.saveGame(this.player, this);
+        const out2x2 = document.getElementById('craft-out-2x2');
+        if (out2x2) {
+            out2x2.addEventListener('click', () => {
+                if (this.craftOutput2x2 !== null) {
+                    const freeSlot = this.mainInventory.indexOf(null);
+                    if (freeSlot !== -1) {
+                        this.mainInventory[freeSlot] = this.craftOutput2x2;
+                        for (let c = 0; c < 4; c++) this.craftGrid2x2[c] = null;
+                        this.checkCrafting2x2();
+                        this.soundManager.playPlace();
+                        this.saveManager.saveGame(this.player, this);
+                    }
                 }
-            }
-        });
+            });
+        }
 
         document.querySelectorAll('.craft-in-2x2').forEach(slot => {
             slot.addEventListener('click', () => {
@@ -284,18 +284,21 @@ export class Engine {
             });
         });
 
-        document.getElementById('craft-out-3x3').addEventListener('click', () => {
-            if (this.craftOutput3x3 !== null) {
-                const freeSlot = this.mainInventory.indexOf(null);
-                if (freeSlot !== -1) {
-                    this.mainInventory[freeSlot] = this.craftOutput3x3;
-                    for (let c = 0; c < 9; c++) this.craftGrid3x3[c] = null;
-                    this.checkCrafting3x3();
-                    this.soundManager.playPlace();
-                    this.saveManager.saveGame(this.player, this);
+        const out3x3 = document.getElementById('craft-out-3x3');
+        if (out3x3) {
+            out3x3.addEventListener('click', () => {
+                if (this.craftOutput3x3 !== null) {
+                    const freeSlot = this.mainInventory.indexOf(null);
+                    if (freeSlot !== -1) {
+                        this.mainInventory[freeSlot] = this.craftOutput3x3;
+                        for (let c = 0; c < 9; c++) this.craftGrid3x3[c] = null;
+                        this.checkCrafting3x3();
+                        this.soundManager.playPlace();
+                        this.saveManager.saveGame(this.player, this);
+                    }
                 }
-            }
-        });
+            });
+        }
 
         document.querySelectorAll('.craft-in-3x3').forEach(slot => {
             slot.addEventListener('click', () => {
@@ -311,8 +314,11 @@ export class Engine {
             });
         });
 
-        document.getElementById('btn-close-inv').addEventListener('click', () => this.closeModals());
-        document.getElementById('btn-close-table').addEventListener('click', () => this.closeModals());
+        const closeInv = document.getElementById('btn-close-inv');
+        if (closeInv) closeInv.addEventListener('click', () => this.closeModals());
+
+        const closeTable = document.getElementById('btn-close-table');
+        if (closeTable) closeTable.addEventListener('click', () => this.closeModals());
 
         const btnInvMobile = document.getElementById('btn-inv-mobile');
         if (btnInvMobile) {
@@ -496,8 +502,14 @@ export class Engine {
         } else {
             this.closeModals();
             this.activeModal = 'inv';
-            if (!this.isTouchDevice) document.exitPointerLock();
-            document.getElementById('inventory-screen').classList.remove('hidden');
+            if (!this.isTouchDevice && document.pointerLockElement) {
+                document.exitPointerLock();
+            }
+            const invEl = document.getElementById('inventory-screen');
+            if (invEl) {
+                invEl.classList.remove('hidden');
+                invEl.style.display = 'flex';
+            }
             this.render2x2UI();
         }
     }
@@ -506,16 +518,32 @@ export class Engine {
         if (this.player.isDead) return;
         this.closeModals();
         this.activeModal = 'table';
-        if (!this.isTouchDevice) document.exitPointerLock();
-        document.getElementById('crafting-table-screen').classList.remove('hidden');
+        if (!this.isTouchDevice && document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+        const tableEl = document.getElementById('crafting-table-screen');
+        if (tableEl) {
+            tableEl.classList.remove('hidden');
+            tableEl.style.display = 'flex';
+        }
         this.render3x3UI();
     }
 
     closeModals() {
         this.activeModal = null;
-        document.getElementById('inventory-screen').classList.add('hidden');
-        document.getElementById('crafting-table-screen').classList.add('hidden');
-        if (!this.isTouchDevice && !this.player.isDead) this.canvas.requestPointerLock();
+        const invEl = document.getElementById('inventory-screen');
+        if (invEl) {
+            invEl.classList.add('hidden');
+            invEl.style.display = 'none';
+        }
+        const tableEl = document.getElementById('crafting-table-screen');
+        if (tableEl) {
+            tableEl.classList.add('hidden');
+            tableEl.style.display = 'none';
+        }
+        if (!this.isTouchDevice && !this.player.isDead && this.isGameRunning) {
+            this.canvas.requestPointerLock();
+        }
         this.saveManager.saveGame(this.player, this);
     }
 
@@ -567,15 +595,14 @@ export class Engine {
         }
     }
 
-initInputs() {
+    initInputs() {
         this.keys = {};
         this.isLocked = false;
         this.isGameRunning = false;
 
         const pauseScreen = document.getElementById('pause-screen');
-        const playBtn = document.getElementById('btn-play');
+        const playBtn = document.getElementById('btn-play') || document.getElementById('btn-singleplayer');
 
-        // Play Button Click
         if (playBtn) {
             playBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -589,25 +616,23 @@ initInputs() {
             });
         }
 
-        // Pointer Lock State Changes
         document.addEventListener('pointerlockchange', () => {
             this.isLocked = (document.pointerLockElement === this.canvas);
             if (this.isLocked) {
                 this.soundManager.initContext();
                 if (pauseScreen) pauseScreen.style.display = 'none';
+                if (this.activeModal) this.closeModals();
             } else if (!this.activeModal && !this.player.isDead && this.isGameRunning) {
                 if (pauseScreen) pauseScreen.style.display = 'flex';
             }
         });
 
-        // Click anywhere on canvas to re-lock pointer
         this.canvas.addEventListener('click', () => {
             if (!this.isLocked && this.isGameRunning && !this.activeModal && !this.player.isDead) {
                 this.canvas.requestPointerLock();
             }
         });
 
-        // Mouse look
         document.addEventListener('mousemove', (e) => {
             if (!this.isLocked || this.activeModal || this.player.isDead) return;
             this.player.yaw -= e.movementX * 0.0024;
@@ -615,7 +640,6 @@ initInputs() {
             this.player.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.player.pitch));
         });
 
-        // Left-Click: Break | Right-Click: Place
         window.addEventListener('mousedown', (e) => {
             this.soundManager.initContext();
             if (this.activeModal || this.player.isDead) return;
@@ -634,9 +658,25 @@ initInputs() {
 
         window.addEventListener('contextmenu', e => e.preventDefault());
 
-        // Keys & Hotbar Numbers
         window.addEventListener('keydown', (e) => {
             if (this.player.isDead) return;
+
+            if (e.code === 'KeyE') {
+                e.preventDefault();
+                this.toggleInventory2x2();
+                return;
+            }
+
+            if (e.code === 'Escape') {
+                if (this.activeModal) {
+                    e.preventDefault();
+                    this.closeModals();
+                    return;
+                }
+            }
+
+            if (this.activeModal) return;
+
             this.keys[e.code] = true;
 
             if (e.code.startsWith('Digit') && e.code !== 'Digit0') {
@@ -649,13 +689,13 @@ initInputs() {
             this.keys[e.code] = false;
         });
 
-        // Mouse Wheel Slot Selection
         window.addEventListener('wheel', (e) => {
-            if (!this.isLocked || this.player.isDead) return;
+            if (!this.isLocked || this.activeModal || this.player.isDead) return;
             if (e.deltaY > 0) this.selectHotbarSlot((this.selectedHotbarIndex + 1) % 9);
             else this.selectHotbarSlot((this.selectedHotbarIndex - 1 + 9) % 9);
         });
     }
+
     handleAttackOrBreak() {
         if (this.player.isDead) return;
         const heldId = this.hotbarItems[this.selectedHotbarIndex];
@@ -669,32 +709,38 @@ initInputs() {
         if (this.mobManager) {
             const mobHits = raycaster.intersectObjects(this.mobManager.getHitMeshes(), false);
             if (mobHits.length > 0) {
-                if (this.interaction) this.interaction.triggerSwing();
+                if (this.interaction && typeof this.interaction.triggerSwing === 'function') {
+                    this.interaction.triggerSwing();
+                }
                 this.mobManager.hitMob(mobHits[0].object, this.getPlayerPosition(), weaponDamage);
                 this.soundManager.playHit();
                 return;
             }
         }
 
-        if (this.interaction && this.interaction.targetHit) {
-            const pos = this.interaction.targetHit.object.userData;
+        if (this.interaction) {
+            const targetHit = this.interaction.targetHit;
             const removedTypeId = this.interaction.breakBlock();
             if (removedTypeId !== null) {
                 this.soundManager.playBreak();
 
-                // If removing a torch, remove its dynamic light
-                const key = `${pos.x},${pos.y},${pos.z}`;
-                if (this.torchLights.has(key)) {
-                    const light = this.torchLights.get(key);
-                    this.scene.remove(light);
-                    this.torchLights.delete(key);
+                if (targetHit && targetHit.object && targetHit.object.userData) {
+                    const pos = targetHit.object.userData;
+                    if (pos.x !== undefined) {
+                        const key = `${pos.x},${pos.y},${pos.z}`;
+                        if (this.torchLights.has(key)) {
+                            const light = this.torchLights.get(key);
+                            this.scene.remove(light);
+                            this.torchLights.delete(key);
+                        }
+                        this.saveManager.recordRemoval(pos.x, pos.y, pos.z);
+
+                        if (this.particleManager) {
+                            this.particleManager.spawnBreakParticles(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5, removedTypeId);
+                        }
+                    }
                 }
 
-                if (this.particleManager) {
-                    this.particleManager.spawnBreakParticles(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5, removedTypeId);
-                }
-
-                this.saveManager.recordRemoval(pos.x, pos.y, pos.z);
                 const freeSlot = this.mainInventory.indexOf(null);
                 if (freeSlot !== -1) {
                     this.mainInventory[freeSlot] = removedTypeId;
@@ -705,9 +751,11 @@ initInputs() {
 
     handlePlaceOrInteract() {
         if (this.player.isDead) return;
+
         if (this.interaction && this.interaction.targetHit) {
-            const hitBlockData = this.interaction.targetHit.object.userData;
-            if (hitBlockData.typeId === BLOCK.CRAFTING_TABLE) {
+            const hitObj = this.interaction.targetHit.object;
+            const hitBlockData = hitObj ? hitObj.userData : null;
+            if (hitBlockData && hitBlockData.typeId === BLOCK.CRAFTING_TABLE) {
                 this.openCraftingTable3x3();
                 return;
             }
@@ -718,24 +766,26 @@ initInputs() {
             const bDef = BLOCK_DEFS[blockId];
             if (bDef && bDef.isItem) return;
 
-            const normal = this.interaction.targetHit.face.normal;
-            const px = this.interaction.targetHit.object.userData.x + Math.round(normal.x);
-            const py = this.interaction.targetHit.object.userData.y + Math.round(normal.y);
-            const pz = this.interaction.targetHit.object.userData.z + Math.round(normal.z);
-
+            const hit = this.interaction.targetHit;
             const placed = this.interaction.placeBlock(blockId, this.player);
             if (placed) {
                 this.soundManager.playPlace();
 
-                // Dynamic Torch Light with warm glow
-                if (blockId === BLOCK.TORCH || blockId === 5) {
-                    const torchLight = new THREE.PointLight(0xffa333, 1.8, 14, 1.2);
-                    torchLight.position.set(px + 0.5, py + 0.7, pz + 0.5);
-                    this.scene.add(torchLight);
-                    this.torchLights.set(`${px},${py},${pz}`, torchLight);
-                }
+                if (hit && hit.face && hit.object && hit.object.userData) {
+                    const normal = hit.face.normal;
+                    const px = hit.object.userData.x + Math.round(normal.x);
+                    const py = hit.object.userData.y + Math.round(normal.y);
+                    const pz = hit.object.userData.z + Math.round(normal.z);
 
-                this.saveManager.recordPlacement(px, py, pz, blockId);
+                    if (blockId === BLOCK.TORCH || blockId === 5) {
+                        const torchLight = new THREE.PointLight(0xffa333, 1.8, 14, 1.2);
+                        torchLight.position.set(px + 0.5, py + 0.7, pz + 0.5);
+                        this.scene.add(torchLight);
+                        this.torchLights.set(`${px},${py},${pz}`, torchLight);
+                    }
+
+                    this.saveManager.recordPlacement(px, py, pz, blockId);
+                }
             }
         }
     }
@@ -748,17 +798,14 @@ initInputs() {
 
         const playerPos = this.getPlayerPosition();
 
-        // 1. Move 3D Clouds slowly across sky
         if (this.cloudsGroup) {
             this.cloudsGroup.position.x = (this.cloudsGroup.position.x + delta * 1.2) % 60;
         }
 
-        // 2. Torch Flame Dynamic Light Flicker
         this.torchLights.forEach(light => {
             light.intensity = 1.6 + (Math.random() * 0.35);
         });
 
-        // Day/Night celestial cycle
         this.dayTime = (this.dayTime + delta * 0.005) % 1.0;
         const sunAngle = this.dayTime * Math.PI * 2;
         this.celestialPivot.rotation.z = sunAngle;
