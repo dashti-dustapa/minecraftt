@@ -5,6 +5,7 @@
  * dynamic torch lights, and mob integration.
  */
 
+import * as THREE from 'three';
 
 import { BLOCK, BLOCK_DEFS } from './Constants.js';
 import { TextureManager } from '../textures/TextureManager.js';
