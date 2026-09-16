@@ -1,7 +1,8 @@
 /**
  * MobManager.js
- * Controls active entities with forward-facing movement vectors,
- * strict 96x96 world boundary clamps, obstacle detection, hitboxes, and audio.
+ * Controls active entities with full 3D AABB voxel collision detection,
+ * solid block obstruction (no clipping into grass blocks), forward-facing movement,
+ * and audio synchronization.
  */
 
 import * as THREE from 'three';
@@ -19,7 +20,6 @@ export class MobManager {
         this.spawnTimer = 0;
         this.maxMobs = 14;
 
-        // Boundaries of 96x96 map (strictly clamped inside safe zone)
         this.WORLD_MIN = 6;
         this.WORLD_MAX = 90;
 
@@ -52,6 +52,16 @@ export class MobManager {
         return null;
     }
 
+    // Helper: Checks if a block is solid physical terrain
+    isSolid(x, y, z) {
+        const bx = Math.floor(x);
+        const by = Math.floor(y);
+        const bz = Math.floor(z);
+        if (by < 0 || by > 128) return false;
+        const b = this.world.getBlock(bx, by, bz);
+        return b !== null && b !== undefined && b !== 0 && b !== BLOCK.WATER;
+    }
+
     createSheepMesh() {
         const group = new THREE.Group();
 
@@ -79,14 +89,14 @@ export class MobManager {
         group.add(headGroup);
         group.head = headGroup;
 
-        // Legs
+        // Legs (Soles rest exactly at y = 0)
         const legGeom = new THREE.BoxGeometry(0.24, 0.65, 0.24);
         group.legs = [];
         const legOffsets = [
-            [-0.28, 0.32, 0.42],  // Front-Left
-            [0.28, 0.32, 0.42],   // Front-Right
-            [-0.28, 0.32, -0.42], // Back-Left
-            [0.28, 0.32, -0.42]   // Back-Right
+            [-0.28, 0.325, 0.42],
+            [0.28, 0.325, 0.42],
+            [-0.28, 0.325, -0.42],
+            [0.28, 0.325, -0.42]
         ];
 
         legOffsets.forEach(pos => {
@@ -96,7 +106,7 @@ export class MobManager {
             group.legs.push(leg);
         });
 
-        // Invisible larger hitbox
+        // Expanded hitbox for reliable hits
         const hitBoxGeom = new THREE.BoxGeometry(1.3, 1.4, 1.5);
         const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
         const hitBox = new THREE.Mesh(hitBoxGeom, hitBoxMat);
@@ -253,7 +263,6 @@ export class MobManager {
             }
         }
 
-        // Strict World Boundary Enforcement: Turn back towards map center (48, 48)
         const curX = mob.mesh.position.x;
         const curZ = mob.mesh.position.z;
         if (curX <= this.WORLD_MIN || curX >= this.WORLD_MAX || curZ <= this.WORLD_MIN || curZ >= this.WORLD_MAX) {
@@ -269,7 +278,6 @@ export class MobManager {
 
         const moveSpeed = mob.isMoving ? 1.7 : 0;
         if (mob.isMoving) {
-            // Forward movement matching head direction (+Z is forward)
             mob.velocity.x = Math.sin(mob.yaw) * moveSpeed;
             mob.velocity.z = Math.cos(mob.yaw) * moveSpeed;
 
@@ -360,49 +368,102 @@ export class MobManager {
         this.applyMobPhysics(mob, delta);
     }
 
+    // ================= SOLID BLOCK PHYSICS & AABB COLLISION =================
     applyMobPhysics(mob, delta) {
-        mob.velocity.y -= 22.0 * delta;
+        const r = (mob.type === 'sheep') ? 0.38 : 0.3;
+        const h = (mob.type === 'sheep') ? 0.9 : 1.8;
 
-        // Auto-jump over 1-block steps in front of mob (+ direction)
-        if (mob.isGrounded && mob.isMoving) {
-            const fx = Math.floor(mob.mesh.position.x + Math.sin(mob.yaw) * 0.8);
-            const fy = Math.floor(mob.mesh.position.y);
-            const fz = Math.floor(mob.mesh.position.z + Math.cos(mob.yaw) * 0.8);
+        // Apply gravity
+        mob.velocity.y -= 24.0 * delta;
 
-            const blockInFront = this.world.getBlock(fx, fy, fz);
-            const blockAbove = this.world.getBlock(fx, fy + 1, fz);
+        // --- 1. HORIZONTAL X COLLISION (Prevents walking inside grass blocks) ---
+        let dx = mob.velocity.x * delta;
+        if (dx !== 0) {
+            const checkX = mob.mesh.position.x + dx + (dx > 0 ? r : -r);
+            const footY = mob.mesh.position.y + 0.15;
+            const chestY = mob.mesh.position.y + Math.min(0.75, h - 0.1);
 
-            if (blockInFront && (!blockAbove || blockAbove === 0)) {
-                mob.velocity.y = 7.0;
-                mob.isGrounded = false;
-            } else if (blockInFront && blockAbove) {
-                // If hitting a 2-block tall wall, turn around smoothly
-                mob.targetYaw += Math.PI * 0.7;
+            const hitFoot = this.isSolid(checkX, footY, mob.mesh.position.z);
+            const hitChest = this.isSolid(checkX, chestY, mob.mesh.position.z);
+
+            if (hitFoot || hitChest) {
+                // If only 1-block high obstacle, step up onto top of grass block
+                const headAboveY = mob.mesh.position.y + 1.15;
+                const canStepUp = hitFoot && !hitChest && !this.isSolid(checkX, headAboveY, mob.mesh.position.z);
+
+                if (canStepUp && mob.isGrounded) {
+                    mob.mesh.position.y = Math.floor(footY) + 1.0;
+                    mob.mesh.position.x += dx;
+                } else {
+                    // Block is solid barrier! Completely block penetration
+                    dx = 0;
+                    mob.velocity.x = 0;
+                    mob.targetYaw += (Math.random() > 0.5 ? 1 : -1) * 1.6;
+                }
+            } else {
+                mob.mesh.position.x += dx;
             }
         }
 
-        mob.mesh.position.x += mob.velocity.x * delta;
-        mob.mesh.position.z += mob.velocity.z * delta;
-        mob.mesh.position.y += mob.velocity.y * delta;
+        // --- 2. HORIZONTAL Z COLLISION (Prevents walking inside grass blocks) ---
+        let dz = mob.velocity.z * delta;
+        if (dz !== 0) {
+            const checkZ = mob.mesh.position.z + dz + (dz > 0 ? r : -r);
+            const footY = mob.mesh.position.y + 0.15;
+            const chestY = mob.mesh.position.y + Math.min(0.75, h - 0.1);
 
-        // Strict clamp to prevent walking into outer layer / boundary void
+            const hitFoot = this.isSolid(mob.mesh.position.x, footY, checkZ);
+            const hitChest = this.isSolid(mob.mesh.position.x, chestY, checkZ);
+
+            if (hitFoot || hitChest) {
+                const headAboveY = mob.mesh.position.y + 1.15;
+                const canStepUp = hitFoot && !hitChest && !this.isSolid(mob.mesh.position.x, headAboveY, checkZ);
+
+                if (canStepUp && mob.isGrounded) {
+                    mob.mesh.position.y = Math.floor(footY) + 1.0;
+                    mob.mesh.position.z += dz;
+                } else {
+                    dz = 0;
+                    mob.velocity.z = 0;
+                    mob.targetYaw += (Math.random() > 0.5 ? 1 : -1) * 1.6;
+                }
+            } else {
+                mob.mesh.position.z += dz;
+            }
+        }
+
+        // Clamp to map borders
         mob.mesh.position.x = Math.max(this.WORLD_MIN, Math.min(this.WORLD_MAX, mob.mesh.position.x));
         mob.mesh.position.z = Math.max(this.WORLD_MIN, Math.min(this.WORLD_MAX, mob.mesh.position.z));
 
-        // Floor collision
-        const bx = Math.floor(mob.mesh.position.x);
-        const by = Math.floor(mob.mesh.position.y);
-        const bz = Math.floor(mob.mesh.position.z);
+        // --- 3. VERTICAL GROUND COLLISION (Stands firmly on top of grass) ---
+        const dy = mob.velocity.y * delta;
+        mob.mesh.position.y += dy;
 
-        const groundBlock = this.world.getBlock(bx, by, bz);
-        if (groundBlock !== null && groundBlock !== undefined && groundBlock !== 0 && groundBlock !== BLOCK.WATER) {
-            mob.mesh.position.y = by + 1.0;
+        const underY = mob.mesh.position.y;
+        const groundHit = this.isSolid(mob.mesh.position.x, underY - 0.04, mob.mesh.position.z) ||
+                          this.isSolid(mob.mesh.position.x + r * 0.6, underY - 0.04, mob.mesh.position.z) ||
+                          this.isSolid(mob.mesh.position.x - r * 0.6, underY - 0.04, mob.mesh.position.z) ||
+                          this.isSolid(mob.mesh.position.x, underY - 0.04, mob.mesh.position.z + r * 0.6) ||
+                          this.isSolid(mob.mesh.position.x, underY - 0.04, mob.mesh.position.z - r * 0.6);
+
+        if (groundHit) {
+            // Place feet precisely on top surface of block (y = by + 1.0)
+            mob.mesh.position.y = Math.floor(underY - 0.04) + 1.0;
             mob.velocity.y = 0;
             mob.isGrounded = true;
         } else {
-            mob.isGrounded = false;
+            // Anti-sink: if slightly clipped inside grass block, push directly to surface
+            if (this.isSolid(mob.mesh.position.x, mob.mesh.position.y + 0.08, mob.mesh.position.z)) {
+                mob.mesh.position.y = Math.floor(mob.mesh.position.y + 0.08) + 1.0;
+                mob.velocity.y = 0;
+                mob.isGrounded = true;
+            } else {
+                mob.isGrounded = false;
+            }
         }
 
+        // Hurt flash reset
         if (mob.hurtTimer > 0) {
             mob.hurtTimer -= delta;
             if (mob.hurtTimer <= 0) {
@@ -429,7 +490,6 @@ export class MobManager {
         mob.health -= damage;
         mob.hurtTimer = 0.25;
 
-        // Red hurt flash
         mob.mesh.traverse(child => {
             if (child.isMesh && child.material && child.material.visible !== false) {
                 if (!child.userData.origColor) child.userData.origColor = child.material.color.getHex();
@@ -437,7 +497,6 @@ export class MobManager {
             }
         });
 
-        // Directional Knockback
         if (playerPos) {
             const kbDir = new THREE.Vector3().subVectors(mob.mesh.position, playerPos).normalize();
             mob.velocity.x += kbDir.x * 5.5;
