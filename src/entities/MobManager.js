@@ -1,11 +1,7 @@
 /**
  * MobManager.js
- * Controls active entities with full 3D voxel collision.
- * Features:
- *  - Daytime Zombie Sunlight Burning with flame visuals & damage
- *  - Player separation buffer (Zombies do not penetrate/clip into player camera)
- *  - Authentic pixelated Minecraft Zombie face/clothes Canvas textures
- *  - Full sheep physics and wandering AI
+ * Controls mobs with accurate Minecraft combat, guaranteed player damage,
+ * daytime zombie sunlight burning, realistic distance spacing, and official audio hooks.
  */
 
 import * as THREE from 'three';
@@ -30,12 +26,11 @@ export class MobManager {
         this.initStartingMobs();
     }
 
-    // Generate authentic pixel-art Minecraft textures procedurally
     initTextures() {
         this.zombieHeadMat = new THREE.MeshLambertMaterial({ map: this.createZombieFaceTexture() });
         this.zombieTorsoMat = new THREE.MeshLambertMaterial({ map: this.createZombieShirtTexture() });
         this.zombiePantsMat = new THREE.MeshLambertMaterial({ map: this.createZombiePantsTexture() });
-        this.zombieSkinMat = new THREE.MeshLambertMaterial({ color: 0x477836 });
+        this.zombieSkinMat = new THREE.MeshLambertMaterial({ color: 0x487938 });
     }
 
     createZombieFaceTexture() {
@@ -44,33 +39,29 @@ export class MobManager {
         canvas.height = 16;
         const ctx = canvas.getContext('2d');
 
-        // Base green rotten flesh
         ctx.fillStyle = '#497e36';
         ctx.fillRect(0, 0, 16, 16);
 
-        // Texture noise
-        const shades = ['#3f702e', '#538b3f', '#366127'];
-        for (let i = 0; i < 35; i++) {
+        const shades = ['#3e6d2b', '#528a3d', '#345e25'];
+        for (let i = 0; i < 40; i++) {
             ctx.fillStyle = shades[Math.floor(Math.random() * shades.length)];
             ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
         }
 
-        // Dark hollow eyes
+        // Hollow Black Eyes
         ctx.fillStyle = '#1c1b18';
         ctx.fillRect(2, 5, 3, 2);
         ctx.fillRect(11, 5, 3, 2);
 
-        // Eyebrows
-        ctx.fillStyle = '#2d4d20';
+        // Dark Brows
+        ctx.fillStyle = '#29471d';
         ctx.fillRect(2, 4, 3, 1);
         ctx.fillRect(11, 4, 3, 1);
 
-        // Nose
-        ctx.fillStyle = '#24401a';
+        // Nose & Mouth
+        ctx.fillStyle = '#223d19';
         ctx.fillRect(7, 7, 2, 2);
-
-        // Mouth
-        ctx.fillStyle = '#1f3616';
+        ctx.fillStyle = '#1a3013';
         ctx.fillRect(5, 11, 6, 2);
 
         const tex = new THREE.CanvasTexture(canvas);
@@ -85,16 +76,15 @@ export class MobManager {
         canvas.height = 16;
         const ctx = canvas.getContext('2d');
 
-        // Teal / Cyan shirt
-        ctx.fillStyle = '#2b7878';
+        ctx.fillStyle = '#297777';
         ctx.fillRect(0, 0, 16, 16);
 
-        // Frayed collar / exposed flesh
+        // Exposed flesh at collar
         ctx.fillStyle = '#497e36';
         ctx.fillRect(6, 0, 4, 4);
 
-        ctx.fillStyle = '#225e5e';
-        ctx.fillRect(0, 14, 16, 2);
+        ctx.fillStyle = '#1f5959';
+        ctx.fillRect(0, 13, 16, 3);
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.magFilter = THREE.NearestFilter;
@@ -108,12 +98,11 @@ export class MobManager {
         canvas.height = 16;
         const ctx = canvas.getContext('2d');
 
-        // Dark blue denim
-        ctx.fillStyle = '#25295c';
+        ctx.fillStyle = '#242758';
         ctx.fillRect(0, 0, 16, 16);
 
-        ctx.fillStyle = '#1b1e42';
-        ctx.fillRect(0, 13, 16, 3);
+        ctx.fillStyle = '#191b3e';
+        ctx.fillRect(0, 12, 16, 4);
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.magFilter = THREE.NearestFilter;
@@ -212,7 +201,7 @@ export class MobManager {
     createZombieMesh() {
         const group = new THREE.Group();
 
-        // Detailed Head with 6 face materials (Front has eyes & mouth)
+        // 6 face materials (front face has eyes and mouth)
         const headMats = [
             this.zombieSkinMat, this.zombieSkinMat, this.zombieSkinMat,
             this.zombieSkinMat, this.zombieHeadMat, this.zombieSkinMat
@@ -223,7 +212,6 @@ export class MobManager {
         group.add(head);
         group.head = head;
 
-        // Torso with cyan shirt
         const torsoGeom = new THREE.BoxGeometry(0.5, 0.75, 0.28);
         const torso = new THREE.Mesh(torsoGeom, this.zombieTorsoMat);
         torso.position.y = 1.05;
@@ -242,7 +230,6 @@ export class MobManager {
         group.add(rightArm);
         group.arms = [leftArm, rightArm];
 
-        // Legs with pants
         const legGeom = new THREE.BoxGeometry(0.24, 0.72, 0.24);
         const leftLeg = new THREE.Mesh(legGeom, this.zombiePantsMat);
         leftLeg.position.set(-0.14, 0.36, 0);
@@ -253,10 +240,10 @@ export class MobManager {
         group.add(rightLeg);
         group.legs = [leftLeg, rightLeg];
 
-        // Flame mesh for daytime burning visual
-        const flameGeom = new THREE.BoxGeometry(0.8, 1.9, 0.8);
+        // Fire mesh visual when exposed to sun
+        const flameGeom = new THREE.BoxGeometry(0.85, 1.95, 0.85);
         const flameMat = new THREE.MeshBasicMaterial({
-            color: 0xff6600,
+            color: 0xff5500,
             transparent: true,
             opacity: 0.0,
             wireframe: true
@@ -291,7 +278,7 @@ export class MobManager {
             isGrounded: false,
             walkCycle: 0,
             wanderTimer: 1 + Math.random() * 3,
-            soundTimer: 2 + Math.random() * 5,
+            soundTimer: 2.5 + Math.random() * 5.0,
             stepTimer: 0.35,
             attackCooldown: 0,
             hurtTimer: 0,
@@ -425,9 +412,8 @@ export class MobManager {
         const distToPlayer = mob.mesh.position.distanceTo(pPos);
         const isDay = (dayTime <= 0.42 || dayTime >= 0.96);
 
-        // 1. DAYTIME SUNLIGHT BURNING LOGIC
+        // 1. SUNLIGHT BURNING IN DAYTIME
         if (isDay) {
-            // Check if open to sky (no roof above zombie)
             const zx = Math.floor(mob.mesh.position.x);
             const zy = Math.floor(mob.mesh.position.y);
             const zz = Math.floor(mob.mesh.position.z);
@@ -444,11 +430,11 @@ export class MobManager {
                 mob.isOnFire = true;
                 mob.burnTimer += delta;
 
-                // Fire damage every 1.1 seconds
-                if (mob.burnTimer >= 1.1) {
+                // Fire damage every 1.0 sec
+                if (mob.burnTimer >= 1.0) {
                     mob.burnTimer = 0;
                     mob.health -= 2;
-                    mob.hurtTimer = 0.2;
+                    mob.hurtTimer = 0.25;
                     if (this.soundManager) this.soundManager.playZombieHurt();
                     if (mob.health <= 0) {
                         this.killMob(mob);
@@ -456,7 +442,6 @@ export class MobManager {
                     }
                 }
 
-                // Show flame wireframe visual
                 if (mob.mesh.flameMesh) {
                     mob.mesh.flameMesh.material.opacity = 0.75 + Math.sin(performance.now() * 0.02) * 0.2;
                 }
@@ -469,34 +454,34 @@ export class MobManager {
             if (mob.mesh.flameMesh) mob.mesh.flameMesh.material.opacity = 0.0;
         }
 
-        // 2. SPOOKY ZOMBIE SOUNDS
+        // 2. OFFICIAL ZOMBIE IDLE AUDIO
         mob.soundTimer -= delta;
         if (mob.soundTimer <= 0) {
-            mob.soundTimer = 4.5 + Math.random() * 6.5;
-            if (distToPlayer < 22 && this.soundManager) {
+            mob.soundTimer = 4.0 + Math.random() * 6.0;
+            if (distToPlayer < 24 && this.soundManager) {
                 this.soundManager.playZombieGroan();
             }
         }
 
-        // 3. PLAYER TRACKING WITH COLLISION SEPARATION (NO CLIPPING)
-        if (distToPlayer < 18) {
+        // 3. TRACK PLAYER & ATTACK
+        if (distToPlayer < 20) {
             const dx = pPos.x - mob.mesh.position.x;
             const dz = pPos.z - mob.mesh.position.z;
             mob.targetYaw = Math.atan2(dx, dz);
 
-            // STOPPING BUFFER: Stop moving if close to player
-            if (distToPlayer > 1.2) {
+            // Buffer distance: Stop at 1.25 blocks so it never clips into camera
+            if (distToPlayer > 1.25) {
                 mob.isMoving = true;
             } else {
                 mob.isMoving = false;
                 mob.velocity.x = 0;
                 mob.velocity.z = 0;
 
-                // Push away if accidentally too close (under 1.0 block)
-                if (distToPlayer < 1.0) {
+                // Push away if overlapping
+                if (distToPlayer < 1.1) {
                     const pushDir = new THREE.Vector3().subVectors(mob.mesh.position, pPos).normalize();
-                    mob.mesh.position.x = pPos.x + pushDir.x * 1.05;
-                    mob.mesh.position.z = pPos.z + pushDir.z * 1.05;
+                    mob.mesh.position.x = pPos.x + pushDir.x * 1.15;
+                    mob.mesh.position.z = pPos.z + pushDir.z * 1.15;
                 }
             }
         } else {
@@ -533,13 +518,32 @@ export class MobManager {
             }
         }
 
-        // Attack when within melee distance
-        if (distToPlayer <= 1.45) {
+        // 4. ATTACK LOGIC & DAMAGE APPLICATION
+        if (distToPlayer <= 1.8) {
             mob.attackCooldown -= delta;
             if (mob.attackCooldown <= 0) {
-                mob.attackCooldown = 1.2;
+                mob.attackCooldown = 1.1; // attack every 1.1s
+
+                // Directly apply damage & trigger red flash and death logic
                 if (typeof this.player.takeDamage === 'function') {
                     this.player.takeDamage(3);
+                } else {
+                    this.player.health = Math.max(0, (this.player.health ?? 20) - 3);
+                    if (typeof this.player.onDamage === 'function') this.player.onDamage();
+                    if (typeof this.player.onStatsChange === 'function') this.player.onStatsChange();
+
+                    if (this.player.health <= 0) {
+                        this.player.isDead = true;
+                        if (typeof this.player.onDeath === 'function') this.player.onDeath();
+                    }
+                }
+
+                // Knock player back
+                if (this.player.velocity) {
+                    const knockDir = new THREE.Vector3().subVectors(pPos, mob.mesh.position).normalize();
+                    this.player.velocity.x += knockDir.x * 4.5;
+                    this.player.velocity.z += knockDir.z * 4.5;
+                    this.player.velocity.y += 2.5;
                 }
             }
         }
@@ -547,7 +551,6 @@ export class MobManager {
         this.applyMobPhysics(mob, delta);
     }
 
-    // ================= FULL SOLID BLOCK PHYSICS =================
     applyMobPhysics(mob, delta) {
         mob.velocity.y -= 24.0 * delta;
 
@@ -608,11 +611,10 @@ export class MobManager {
             }
         }
 
-        // Clamp boundaries
         mob.mesh.position.x = Math.max(this.WORLD_MIN, Math.min(this.WORLD_MAX, mob.mesh.position.x));
         mob.mesh.position.z = Math.max(this.WORLD_MIN, Math.min(this.WORLD_MAX, mob.mesh.position.z));
 
-        // Ground check
+        // Ground collision
         mob.mesh.position.y += mob.velocity.y * delta;
         const footY = mob.mesh.position.y;
         const isTouchingGround = this.isSolid(mob.mesh.position.x, footY - 0.05, mob.mesh.position.z);
@@ -631,7 +633,6 @@ export class MobManager {
             }
         }
 
-        // Hurt flash
         if (mob.hurtTimer > 0) {
             mob.hurtTimer -= delta;
             if (mob.hurtTimer <= 0) {
@@ -689,6 +690,9 @@ export class MobManager {
     }
 
     killMob(mob) {
+        if (mob.type === 'zombie') {
+            if (this.soundManager) this.soundManager.playZombieDeath();
+        }
         this.removeMob(mob);
     }
 
