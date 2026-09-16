@@ -1,30 +1,42 @@
 /**
  * SoundManager.js
- * Master audio manager handling procedural Web Audio synthesizers (with zero missing-file risk)
- * alongside external audio samples for sheep, zombies, footsteps, and block interactions.
+ * High-performance sound manager loading official Minecraft audio files
+ * for Sheep (Say, Step) and Zombies (Idle, Hurt, Death) with zero synthesizer noise.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
 
-        // Sheep sounds
+        // Sheep official audio files
         this.sheepSaySounds = [
-            'sounds/Sheep1.ogg', 'sounds/Sheep2.ogg', 'sounds/Sheep3.ogg'
+            'sounds/Sheep1.ogg',
+            'sounds/Sheep2.ogg',
+            'sounds/Sheep3.ogg'
         ].map(src => this.createAudioElement(src));
 
         this.sheepStepSounds = [
-            'sounds/Sheep_step1.ogg.mp3', 'sounds/Sheep_step2.ogg.mp3',
-            'sounds/Sheep_step3.ogg.mp3', 'sounds/Sheep_step4.ogg.mp3', 'sounds/Sheep_step5.ogg.mp3'
+            'sounds/Sheep_step1.ogg.mp3',
+            'sounds/Sheep_step2.ogg.mp3',
+            'sounds/Sheep_step3.ogg.mp3',
+            'sounds/Sheep_step4.ogg.mp3',
+            'sounds/Sheep_step5.ogg.mp3'
         ].map(src => this.createAudioElement(src));
 
-        // Zombie sounds
-        this.zombieGroanSounds = [
-            'sounds/zombie_say1.ogg', 'sounds/zombie_say2.ogg', 'sounds/zombie_say3.ogg'
+        // Zombie official uploaded audio files (exact case-sensitive paths)
+        this.zombieIdleSounds = [
+            'sounds/Zombie_idle1.ogg',
+            'sounds/Zombie_idle2.ogg',
+            'sounds/Zombie_idle3.ogg'
         ].map(src => this.createAudioElement(src));
 
         this.zombieHurtSounds = [
-            'sounds/zombie_hurt1.ogg', 'sounds/zombie_hurt2.ogg'
+            'sounds/Zombie_hurt1.ogg',
+            'sounds/Zombie_hurt2.ogg'
+        ].map(src => this.createAudioElement(src));
+
+        this.zombieDeathSounds = [
+            'sounds/Zombie_death.ogg'
         ].map(src => this.createAudioElement(src));
     }
 
@@ -48,7 +60,7 @@ export class SoundManager {
         return this.ctx;
     }
 
-    playAudioList(list, volume = 0.6, playbackRate = 1.0) {
+    playAudioList(list, volume = 0.6) {
         if (!list || list.length === 0) return false;
         const valid = list.filter(a => a && a.src);
         if (valid.length === 0) return false;
@@ -56,7 +68,6 @@ export class SoundManager {
         try {
             const sound = valid[Math.floor(Math.random() * valid.length)].cloneNode();
             sound.volume = volume;
-            sound.playbackRate = playbackRate;
             const playPromise = sound.play();
             if (playPromise !== undefined) {
                 playPromise.catch(() => {});
@@ -70,74 +81,33 @@ export class SoundManager {
     // ================= SHEEP SOUNDS =================
 
     playSheepBaa() {
-        this.playAudioList(this.sheepSaySounds, 0.65, 1.0);
+        this.playAudioList(this.sheepSaySounds, 0.65);
     }
 
     playSheepHurt() {
-        this.playAudioList(this.sheepSaySounds, 0.85, 1.35);
+        this.playAudioList(this.sheepSaySounds, 0.85);
         this.playHit();
     }
 
     playSheepStep() {
-        this.playAudioList(this.sheepStepSounds, 0.35, 1.0);
+        this.playAudioList(this.sheepStepSounds, 0.3);
     }
 
-    // ================= ZOMBIE SOUNDS =================
+    // ================= OFFICIAL ZOMBIE SOUNDS =================
 
     playZombieGroan() {
-        // Fallback synthesizer guarantees spooky zombie groan even without files
-        const ctx = this.initContext();
-        if (!ctx) return;
-
-        const now = ctx.currentTime;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(85, now);
-        osc.frequency.linearRampToValueAtTime(65, now + 0.9);
-
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(320, now);
-        filter.frequency.linearRampToValueAtTime(180, now + 0.9);
-
-        gain.gain.setValueAtTime(0.35, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
-
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(now);
-        osc.stop(now + 0.95);
+        this.playAudioList(this.zombieIdleSounds, 0.7);
     }
 
     playZombieHurt() {
-        const ctx = this.initContext();
-        if (!ctx) return;
-
-        const now = ctx.currentTime;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(140, now);
-        osc.frequency.exponentialRampToValueAtTime(45, now + 0.25);
-
-        gain.gain.setValueAtTime(0.5, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(now);
-        osc.stop(now + 0.25);
-
-        this.playHit();
+        this.playAudioList(this.zombieHurtSounds, 0.8);
     }
 
-    // ================= COMBAT & ENVIRONMENT =================
+    playZombieDeath() {
+        this.playAudioList(this.zombieDeathSounds, 0.85);
+    }
+
+    // ================= INTERACTIONS =================
 
     playHit() {
         const ctx = this.initContext();
@@ -151,7 +121,7 @@ export class SoundManager {
         osc.frequency.setValueAtTime(220, now);
         osc.frequency.exponentialRampToValueAtTime(45, now + 0.16);
 
-        gain.gain.setValueAtTime(0.65, now);
+        gain.gain.setValueAtTime(0.6, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
         osc.connect(gain);
