@@ -1,39 +1,30 @@
 /**
  * SoundManager.js
- * Master audio manager handling procedural Web Audio and local audio samples
- * for player actions, block manipulation, and mob reactions.
+ * Master audio manager handling procedural Web Audio synthesizers (with zero missing-file risk)
+ * alongside external audio samples for sheep, zombies, footsteps, and block interactions.
  */
 
 export class SoundManager {
     constructor() {
         this.ctx = null;
 
-        // Sheep voice variations (Say / Baa)
+        // Sheep sounds
         this.sheepSaySounds = [
-            'sounds/Sheep1.ogg',
-            'sounds/Sheep2.ogg',
-            'sounds/Sheep3.ogg'
+            'sounds/Sheep1.ogg', 'sounds/Sheep2.ogg', 'sounds/Sheep3.ogg'
         ].map(src => this.createAudioElement(src));
 
-        // Sheep footstep sound variations
         this.sheepStepSounds = [
-            'sounds/Sheep_step1.ogg.mp3',
-            'sounds/Sheep_step2.ogg.mp3',
-            'sounds/Sheep_step3.ogg.mp3',
-            'sounds/Sheep_step4.ogg.mp3',
-            'sounds/Sheep_step5.ogg.mp3'
+            'sounds/Sheep_step1.ogg.mp3', 'sounds/Sheep_step2.ogg.mp3',
+            'sounds/Sheep_step3.ogg.mp3', 'sounds/Sheep_step4.ogg.mp3', 'sounds/Sheep_step5.ogg.mp3'
         ].map(src => this.createAudioElement(src));
 
         // Zombie sounds
         this.zombieGroanSounds = [
-            'sounds/zombie_say1.ogg',
-            'sounds/zombie_say2.ogg',
-            'sounds/zombie_say3.ogg'
+            'sounds/zombie_say1.ogg', 'sounds/zombie_say2.ogg', 'sounds/zombie_say3.ogg'
         ].map(src => this.createAudioElement(src));
 
         this.zombieHurtSounds = [
-            'sounds/zombie_hurt1.ogg',
-            'sounds/zombie_hurt2.ogg'
+            'sounds/zombie_hurt1.ogg', 'sounds/zombie_hurt2.ogg'
         ].map(src => this.createAudioElement(src));
     }
 
@@ -62,11 +53,18 @@ export class SoundManager {
         const valid = list.filter(a => a && a.src);
         if (valid.length === 0) return false;
 
-        const sound = valid[Math.floor(Math.random() * valid.length)].cloneNode();
-        sound.volume = volume;
-        sound.playbackRate = playbackRate;
-        sound.play().catch(() => {});
-        return true;
+        try {
+            const sound = valid[Math.floor(Math.random() * valid.length)].cloneNode();
+            sound.volume = volume;
+            sound.playbackRate = playbackRate;
+            const playPromise = sound.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {});
+            }
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     // ================= SHEEP SOUNDS =================
@@ -76,7 +74,6 @@ export class SoundManager {
     }
 
     playSheepHurt() {
-        // Play sheep voice with high pitch + impact punch
         this.playAudioList(this.sheepSaySounds, 0.85, 1.35);
         this.playHit();
     }
@@ -88,15 +85,59 @@ export class SoundManager {
     // ================= ZOMBIE SOUNDS =================
 
     playZombieGroan() {
-        this.playAudioList(this.zombieGroanSounds, 0.6);
+        // Fallback synthesizer guarantees spooky zombie groan even without files
+        const ctx = this.initContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(85, now);
+        osc.frequency.linearRampToValueAtTime(65, now + 0.9);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(320, now);
+        filter.frequency.linearRampToValueAtTime(180, now + 0.9);
+
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.95);
     }
 
     playZombieHurt() {
-        this.playAudioList(this.zombieHurtSounds, 0.7);
+        const ctx = this.initContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(45, now + 0.25);
+
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.25);
+
         this.playHit();
     }
 
-    // ================= INTERACTIONS =================
+    // ================= COMBAT & ENVIRONMENT =================
 
     playHit() {
         const ctx = this.initContext();
@@ -151,9 +192,7 @@ export class SoundManager {
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
 
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
 
         const noise = ctx.createBufferSource();
         noise.buffer = buffer;
@@ -194,37 +233,5 @@ export class SoundManager {
 
         osc.start(now);
         osc.stop(now + 0.09);
-    }
-
-    playSplash() {
-        const ctx = this.initContext();
-        if (!ctx) return;
-
-        const now = ctx.currentTime;
-        const bufferSize = ctx.sampleRate * 0.25;
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-
-        const noise = ctx.createBufferSource();
-        noise.buffer = buffer;
-
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(1100, now);
-        filter.Q.setValueAtTime(1.5, now);
-
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-        noise.connect(filter);
-        filter.connect(gain);
-        gain.connect(ctx.destination);
-
-        noise.start(now);
     }
 }
