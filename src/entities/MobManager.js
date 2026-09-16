@@ -1,7 +1,7 @@
 /**
  * MobManager.js
- * Controls active entities with robust hitboxes, responsive bounds within the 96x96 world,
- * procedural movement, and synchronized audio.
+ * Controls active entities with forward-facing movement vectors,
+ * strict 96x96 world boundary clamps, obstacle detection, hitboxes, and audio.
  */
 
 import * as THREE from 'three';
@@ -19,6 +19,10 @@ export class MobManager {
         this.spawnTimer = 0;
         this.maxMobs = 14;
 
+        // Boundaries of 96x96 map (strictly clamped inside safe zone)
+        this.WORLD_MIN = 6;
+        this.WORLD_MAX = 90;
+
         this.initStartingMobs();
     }
 
@@ -26,10 +30,10 @@ export class MobManager {
         const pPos = this.player.pos || this.player.position || { x: 48, y: 20, z: 48 };
 
         for (let i = 0; i < 6; i++) {
-            const ox = (Math.random() - 0.5) * 20;
-            const oz = (Math.random() - 0.5) * 20;
-            const spawnX = Math.max(8, Math.min(88, Math.floor(pPos.x + ox)));
-            const spawnZ = Math.max(8, Math.min(88, Math.floor(pPos.z + oz)));
+            const ox = (Math.random() - 0.5) * 24;
+            const oz = (Math.random() - 0.5) * 24;
+            const spawnX = Math.max(this.WORLD_MIN + 2, Math.min(this.WORLD_MAX - 2, Math.floor(pPos.x + ox)));
+            const spawnZ = Math.max(this.WORLD_MIN + 2, Math.min(this.WORLD_MAX - 2, Math.floor(pPos.z + oz)));
             const spawnY = this.getHighestGround(spawnX, spawnZ);
 
             if (spawnY !== null) {
@@ -51,7 +55,6 @@ export class MobManager {
     createSheepMesh() {
         const group = new THREE.Group();
 
-        // Material instances
         const woolMat = new THREE.MeshLambertMaterial({ color: 0xededed });
         const skinMat = new THREE.MeshLambertMaterial({ color: 0xd9b38c });
 
@@ -61,7 +64,7 @@ export class MobManager {
         bodyMesh.position.y = 0.8;
         group.add(bodyMesh);
 
-        // Head
+        // Head (Facing +Z Forward)
         const headGroup = new THREE.Group();
         headGroup.position.set(0, 1.15, 0.65);
 
@@ -80,10 +83,10 @@ export class MobManager {
         const legGeom = new THREE.BoxGeometry(0.24, 0.65, 0.24);
         group.legs = [];
         const legOffsets = [
-            [-0.28, 0.32, 0.42],
-            [0.28, 0.32, 0.42],
-            [-0.28, 0.32, -0.42],
-            [0.28, 0.32, -0.42]
+            [-0.28, 0.32, 0.42],  // Front-Left
+            [0.28, 0.32, 0.42],   // Front-Right
+            [-0.28, 0.32, -0.42], // Back-Left
+            [0.28, 0.32, -0.42]   // Back-Right
         ];
 
         legOffsets.forEach(pos => {
@@ -93,7 +96,7 @@ export class MobManager {
             group.legs.push(leg);
         });
 
-        // Invisible extended hitbox for reliable hitting
+        // Invisible larger hitbox
         const hitBoxGeom = new THREE.BoxGeometry(1.3, 1.4, 1.5);
         const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
         const hitBox = new THREE.Mesh(hitBoxGeom, hitBoxMat);
@@ -204,11 +207,10 @@ export class MobManager {
             const isNight = (dayTime > 0.45 && dayTime < 0.95);
             const type = isNight ? (Math.random() > 0.4 ? 'zombie' : 'sheep') : 'sheep';
 
-            // Natural spawn radius (10 to 22 blocks near player, strictly within map bounds)
             const angle = Math.random() * Math.PI * 2;
-            const dist = 10 + Math.random() * 12;
-            const sx = Math.max(8, Math.min(88, Math.floor(pPos.x + Math.cos(angle) * dist)));
-            const sz = Math.max(8, Math.min(88, Math.floor(pPos.z + Math.sin(angle) * dist)));
+            const dist = 10 + Math.random() * 14;
+            const sx = Math.max(this.WORLD_MIN + 2, Math.min(this.WORLD_MAX - 2, Math.floor(pPos.x + Math.cos(angle) * dist)));
+            const sz = Math.max(this.WORLD_MIN + 2, Math.min(this.WORLD_MAX - 2, Math.floor(pPos.z + Math.sin(angle) * dist)));
             const sy = this.getHighestGround(sx, sz);
 
             if (sy !== null) {
@@ -245,28 +247,31 @@ export class MobManager {
         mob.wanderTimer -= delta;
         if (mob.wanderTimer <= 0) {
             mob.wanderTimer = 2.5 + Math.random() * 4;
-            mob.isMoving = Math.random() > 0.3;
+            mob.isMoving = Math.random() > 0.35;
             if (mob.isMoving) {
-                mob.targetYaw += (Math.random() - 0.5) * 2.0;
+                mob.targetYaw += (Math.random() - 0.5) * 2.2;
             }
         }
 
-        // Keep inside active world (avoid stuck at perimeter)
-        if (mob.mesh.position.x < 8) { mob.targetYaw = Math.PI / 2; mob.isMoving = true; }
-        else if (mob.mesh.position.x > 88) { mob.targetYaw = -Math.PI / 2; mob.isMoving = true; }
-        if (mob.mesh.position.z < 8) { mob.targetYaw = 0; mob.isMoving = true; }
-        else if (mob.mesh.position.z > 88) { mob.targetYaw = Math.PI; mob.isMoving = true; }
+        // Strict World Boundary Enforcement: Turn back towards map center (48, 48)
+        const curX = mob.mesh.position.x;
+        const curZ = mob.mesh.position.z;
+        if (curX <= this.WORLD_MIN || curX >= this.WORLD_MAX || curZ <= this.WORLD_MIN || curZ >= this.WORLD_MAX) {
+            mob.targetYaw = Math.atan2(48 - curX, 48 - curZ);
+            mob.isMoving = true;
+        }
 
         let diff = mob.targetYaw - mob.yaw;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
-        mob.yaw += diff * delta * 3.0;
+        mob.yaw += diff * delta * 3.5;
         mob.mesh.rotation.y = mob.yaw;
 
         const moveSpeed = mob.isMoving ? 1.7 : 0;
         if (mob.isMoving) {
-            mob.velocity.x = -Math.sin(mob.yaw) * moveSpeed;
-            mob.velocity.z = -Math.cos(mob.yaw) * moveSpeed;
+            // Forward movement matching head direction (+Z is forward)
+            mob.velocity.x = Math.sin(mob.yaw) * moveSpeed;
+            mob.velocity.z = Math.cos(mob.yaw) * moveSpeed;
 
             mob.walkCycle += delta * 7.0;
             const swing = Math.sin(mob.walkCycle) * 0.45;
@@ -309,7 +314,7 @@ export class MobManager {
         if (distToPlayer < 18) {
             const dx = pPos.x - mob.mesh.position.x;
             const dz = pPos.z - mob.mesh.position.z;
-            mob.targetYaw = Math.atan2(-dx, -dz);
+            mob.targetYaw = Math.atan2(dx, dz);
             mob.isMoving = true;
         } else {
             mob.wanderTimer -= delta;
@@ -328,8 +333,8 @@ export class MobManager {
 
         const moveSpeed = mob.isMoving ? 2.5 : 0;
         if (mob.isMoving) {
-            mob.velocity.x = -Math.sin(mob.yaw) * moveSpeed;
-            mob.velocity.z = -Math.cos(mob.yaw) * moveSpeed;
+            mob.velocity.x = Math.sin(mob.yaw) * moveSpeed;
+            mob.velocity.z = Math.cos(mob.yaw) * moveSpeed;
 
             mob.walkCycle += delta * 6.5;
             const swing = Math.sin(mob.walkCycle) * 0.5;
@@ -358,11 +363,11 @@ export class MobManager {
     applyMobPhysics(mob, delta) {
         mob.velocity.y -= 22.0 * delta;
 
-        // Auto-jump over 1-block steps
+        // Auto-jump over 1-block steps in front of mob (+ direction)
         if (mob.isGrounded && mob.isMoving) {
-            const fx = Math.floor(mob.mesh.position.x - Math.sin(mob.yaw) * 0.75);
+            const fx = Math.floor(mob.mesh.position.x + Math.sin(mob.yaw) * 0.8);
             const fy = Math.floor(mob.mesh.position.y);
-            const fz = Math.floor(mob.mesh.position.z - Math.cos(mob.yaw) * 0.75);
+            const fz = Math.floor(mob.mesh.position.z + Math.cos(mob.yaw) * 0.8);
 
             const blockInFront = this.world.getBlock(fx, fy, fz);
             const blockAbove = this.world.getBlock(fx, fy + 1, fz);
@@ -370,12 +375,19 @@ export class MobManager {
             if (blockInFront && (!blockAbove || blockAbove === 0)) {
                 mob.velocity.y = 7.0;
                 mob.isGrounded = false;
+            } else if (blockInFront && blockAbove) {
+                // If hitting a 2-block tall wall, turn around smoothly
+                mob.targetYaw += Math.PI * 0.7;
             }
         }
 
         mob.mesh.position.x += mob.velocity.x * delta;
         mob.mesh.position.z += mob.velocity.z * delta;
         mob.mesh.position.y += mob.velocity.y * delta;
+
+        // Strict clamp to prevent walking into outer layer / boundary void
+        mob.mesh.position.x = Math.max(this.WORLD_MIN, Math.min(this.WORLD_MAX, mob.mesh.position.x));
+        mob.mesh.position.z = Math.max(this.WORLD_MIN, Math.min(this.WORLD_MAX, mob.mesh.position.z));
 
         // Floor collision
         const bx = Math.floor(mob.mesh.position.x);
@@ -417,7 +429,7 @@ export class MobManager {
         mob.health -= damage;
         mob.hurtTimer = 0.25;
 
-        // Red flash
+        // Red hurt flash
         mob.mesh.traverse(child => {
             if (child.isMesh && child.material && child.material.visible !== false) {
                 if (!child.userData.origColor) child.userData.origColor = child.material.color.getHex();
@@ -425,7 +437,7 @@ export class MobManager {
             }
         });
 
-        // Knockback
+        // Directional Knockback
         if (playerPos) {
             const kbDir = new THREE.Vector3().subVectors(mob.mesh.position, playerPos).normalize();
             mob.velocity.x += kbDir.x * 5.5;
@@ -434,7 +446,6 @@ export class MobManager {
             mob.isGrounded = false;
         }
 
-        // Trigger Audio
         if (mob.type === 'sheep') {
             if (this.soundManager) this.soundManager.playSheepHurt();
         } else if (mob.type === 'zombie') {
